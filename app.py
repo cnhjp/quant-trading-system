@@ -4,11 +4,11 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from data_loader import DataLoader
-from strategies import LiquidityGrabStrategy, TrendConfluenceStrategy, MeanReversionStrategy, DailyDCAStrategy
+from strategies import LiquidityGrabStrategy, TrendConfluenceStrategy, MeanReversionStrategy, DailyDCAStrategy, PyramidGridStrategy
 from backtester import Backtester
 
 # 页面配置
-st.set_page_config(page_title="Quant Trading System", layout="wide")
+st.set_page_config(page_title="量化交易回测系统", layout="wide")
 
 # 初始化模块
 data_loader = DataLoader()
@@ -18,7 +18,8 @@ strategies = {
     "Liquidity Grab (SFP)": LiquidityGrabStrategy(),
     "Trend Confluence": TrendConfluenceStrategy(),
     "Mean Reversion (RSI)": MeanReversionStrategy(),
-    "Daily DCA": DailyDCAStrategy()
+    "Daily DCA": DailyDCAStrategy(),
+    "Pyramid Grid": PyramidGridStrategy()
 }
 
 # 侧边栏
@@ -32,10 +33,11 @@ backtester = Backtester(initial_capital=initial_capital)
 
 # 策略名称映射
 strategy_display_names = {
-    "Liquidity Grab (SFP)": "流动性掠夺 (SFP)",
-    "Trend Confluence": "趋势共振 (Trend Confluence)",
-    "Mean Reversion (RSI)": "均值回归 (RSI)",
-    "Daily DCA": "每日定投 (DCA)"
+    "Liquidity Grab (SFP)": "流动性掠夺策略",
+    "Trend Confluence": "趋势共振策略",
+    "Mean Reversion (RSI)": "均值回归策略",
+    "Daily DCA": "每日定投策略",
+    "Pyramid Grid": "金字塔网格策略"
 }
 # 反向映射以获取策略字典的键
 display_to_key = {v: k for k, v in strategy_display_names.items()}
@@ -90,6 +92,10 @@ if run_backtest:
                     if s_name == "Daily DCA":
                         res = backtester.run_dca_backtest(df)
                         met = backtester.calculate_metrics(res, is_dca=True)
+                    elif s_name == "Pyramid Grid":
+                        sig = strategy.generate_signals(df)
+                        res = backtester.run_pyramid_backtest(df, sig)
+                        met = backtester.calculate_metrics(res, is_pyramid=True)
                     else:
                         sig = strategy.generate_signals(df, vix_df=vix_df)
                         res = backtester.run_backtest(df, sig)
@@ -104,16 +110,25 @@ if run_backtest:
                     
                     # 保存基准 (只需要一次)
                     if 'Benchmark_Equity' not in equity_curves:
-                        equity_curves['Benchmark (SPY B&H)'] = res['Benchmark_Equity']
+                        equity_curves['基准 (SPY 买入持有)'] = res['Benchmark_Equity']
 
                 # 1. 指标对比表
                 comp_df = pd.DataFrame(comparison_results).set_index('Strategy')
+                # 重命名列为中文
+                comp_df = comp_df.rename(columns={
+                    'Total Return': '总收益率',
+                    'Benchmark Return': '基准收益',
+                    'Win Rate': '胜率',
+                    'Max Drawdown': '最大回撤',
+                    'Sharpe Ratio': '夏普比率'
+                })
                 # 格式化列
                 format_dict = {
-                    "Total Return": "{:.2%}",
-                    "Benchmark Return": "{:.2%}",
-                    "Win Rate": "{:.2%}",
-                    "Max Drawdown": "{:.2%}"
+                    "总收益率": "{:.2%}",
+                    "基准收益": "{:.2%}",
+                    "胜率": "{:.2%}",
+                    "最大回撤": "{:.2%}",
+                    "夏普比率": "{:.2f}"
                 }
                 st.table(comp_df.style.format(format_dict))
                 
@@ -121,7 +136,7 @@ if run_backtest:
                 fig_comp = go.Figure()
                 for name, curve in equity_curves.items():
                     line_props = dict()
-                    if "Benchmark" in name:
+                    if "Benchmark" in name or "基准" in name:
                         line_props = dict(dash='dash', color='gray', width=2)
                     
                     fig_comp.add_trace(go.Scatter(x=curve.index, y=curve, mode='lines', name=name, line=line_props))
@@ -142,10 +157,10 @@ if run_backtest:
                     
                     # 显示 DCA 结果
                     col1, col2, col3, col4 = st.columns(4)
-                    col1.metric("总收益率 (Total Return)", f"{metrics['Total Return']:.2%}")
-                    col2.metric("总投入 (Total Invested)", f"${results['Total_Invested'].iloc[-1]:,.0f}")
-                    col3.metric("最终净值 (Final Equity)", f"${results['Equity'].iloc[-1]:,.0f}")
-                    col4.metric("最大回撤 (Max Drawdown)", f"{metrics['Max Drawdown']:.2%}")
+                    col1.metric("总收益率", f"{metrics['Total Return']:.2%}")
+                    col2.metric("总投入", f"${results['Total_Invested'].iloc[-1]:,.0f}")
+                    col3.metric("最终净值", f"${results['Equity'].iloc[-1]:,.0f}")
+                    col4.metric("最大回撤", f"{metrics['Max Drawdown']:.2%}")
                     
                     tab1, tab2, tab3 = st.tabs(["回测结果", "交易分析", "历史数据"])
                     with tab1:
@@ -157,6 +172,50 @@ if run_backtest:
                     
                     with tab2:
                         st.info("定投策略每日买入，无特定交易信号图表。")
+                    
+                    with tab3:
+                        st.dataframe(df)
+                
+                elif strategy_name == "Pyramid Grid":
+                    # Pyramid Grid 特殊处理
+                    strategy = strategies[strategy_name]
+                    signals = strategy.generate_signals(df)
+                    results = backtester.run_pyramid_backtest(df, signals)
+                    metrics = backtester.calculate_metrics(results, is_pyramid=True)
+                    
+                    # 显示 Pyramid Grid 结果
+                    col1, col2, col3, col4, col5 = st.columns(5)
+                    col1.metric("总收益率", f"{metrics['Total Return']:.2%}")
+                    col2.metric("基准收益", f"{metrics['Benchmark Return']:.2%}")
+                    col3.metric("夏普比率", f"{metrics.get('Sharpe Ratio', 0):.2f}")
+                    col4.metric("胜率", f"{metrics['Win Rate']:.2%}")
+                    col5.metric("最大回撤", f"{metrics['Max Drawdown']:.2%}")
+                    
+                    tab1, tab2, tab3 = st.tabs(["回测结果", "仓位分析", "历史数据"])
+                    with tab1:
+                        # 资金曲线
+                        fig_equity = go.Figure()
+                        fig_equity.add_trace(go.Scatter(x=results.index, y=results['Equity'], mode='lines', name='策略净值'))
+                        fig_equity.add_trace(go.Scatter(x=results.index, y=results['Benchmark_Equity'], mode='lines', name='基准净值 (一次性买入)', line=dict(dash='dash', color='gray')))
+                        fig_equity.update_layout(title="金字塔网格 vs 一次性投入", xaxis_title="日期", yaxis_title="净值 ($)")
+                        st.plotly_chart(fig_equity, use_container_width=True)
+                    
+                    with tab2:
+                        # 仓位分析
+                        col_a, col_b = st.columns(2)
+                        with col_a:
+                            st.metric("底仓股数", f"{results['Core_Position'].iloc[-1]:.2f}")
+                            st.metric("可交易股数", f"{results['Tradable_Position'].iloc[-1]:.2f}")
+                        with col_b:
+                            st.metric("总持仓股数", f"{results['Total_Shares'].iloc[-1]:.2f}")
+                            st.metric("持仓均价", f"${results['Avg_Cost'].iloc[-1]:.2f}")
+                        
+                        # 持仓演变图
+                        fig_position = go.Figure()
+                        fig_position.add_trace(go.Scatter(x=results.index, y=results['Core_Position'], mode='lines', name='底仓 (永久)', stackgroup='one'))
+                        fig_position.add_trace(go.Scatter(x=results.index, y=results['Tradable_Position'], mode='lines', name='可交易仓位', stackgroup='one'))
+                        fig_position.update_layout(title="仓位演变", xaxis_title="日期", yaxis_title="持仓股数")
+                        st.plotly_chart(fig_position, use_container_width=True)
                     
                     with tab3:
                         st.dataframe(df)
@@ -174,10 +233,10 @@ if run_backtest:
                     
                     # 指标行
                     col1, col2, col3, col4 = st.columns(4)
-                    col1.metric("总收益率 (Total Return)", f"{metrics['Total Return']:.2%}")
-                    col2.metric("基准收益 (Benchmark)", f"{metrics['Benchmark Return']:.2%}")
-                    col3.metric("胜率 (Win Rate)", f"{metrics['Win Rate']:.2%}")
-                    col4.metric("最大回撤 (Max Drawdown)", f"{metrics['Max Drawdown']:.2%}")
+                    col1.metric("总收益率", f"{metrics['Total Return']:.2%}")
+                    col2.metric("基准收益", f"{metrics['Benchmark Return']:.2%}")
+                    col3.metric("胜率", f"{metrics['Win Rate']:.2%}")
+                    col4.metric("最大回撤", f"{metrics['Max Drawdown']:.2%}")
                     
                     # 标签页视图
                     tab1, tab2, tab3 = st.tabs(["回测结果", "交易分析", "历史数据"])
@@ -186,7 +245,7 @@ if run_backtest:
                         # 资金曲线
                         fig_equity = go.Figure()
                         fig_equity.add_trace(go.Scatter(x=results.index, y=results['Equity'], mode='lines', name='策略净值'))
-                        fig_equity.add_trace(go.Scatter(x=results.index, y=results['Benchmark_Equity'], mode='lines', name='基准净值 (SPY持有)', line=dict(dash='dash')))
+                        fig_equity.add_trace(go.Scatter(x=results.index, y=results['Benchmark_Equity'], mode='lines', name='基准净值 (SPY持有)', line=dict(dash='dash', color='gray')))
                         fig_equity.update_layout(title="资金曲线 vs 基准", xaxis_title="日期", yaxis_title="净值 ($)")
                         st.plotly_chart(fig_equity, use_container_width=True)
                         
