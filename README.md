@@ -86,9 +86,16 @@ quant-trading-system/
 ├── strategies.py               # 交易策略实现
 ├── backtester.py               # 回测引擎（含 Portfolio 类）
 ├── test_system.py              # 系统测试脚本
+├── config.py                   # 全局配置（标的列表） ⭐ 新增
+├── update_data.py              # 数据更新脚本（GitHub Actions 用） ⭐ 新增
+├── notify_dingtalk.py          # 钉钉通知脚本（GitHub Actions 用） ⭐ 新增
 ├── requirements.txt            # Python 依赖
 ├── .gitignore                  # Git 忽略文件
 ├── README.md                   # 本文件
+├── .github/                    # GitHub Actions 工作流 ⭐ 新增
+│   └── workflows/
+│       ├── daily_update.yml    # 数据更新配置
+│       └── daily_notify.yml    # 钉钉推送配置
 ├── docs/                       # 策略文档文件夹 ⭐ 新增
 │   ├── README.md              # 策略文档索引
 │   ├── 流动性掠夺策略.md
@@ -124,6 +131,41 @@ quant-trading-system/
 ### 数据更新
 
 点击"更新数据"按钮可强制刷新历史数据（默认缓存 24 小时）
+
+## 🤖 自动化功能 (New!)
+
+本项目利用 GitHub Actions 实现了完全免费的自动化数据更新和交易信号推送。
+
+### 1. 自动数据更新
+
+- **机制**: 每天北京时间 06:00 和 18:00 自动运行。
+- **功能**: 从 Yahoo Finance 获取最新 5 年数据，并自动 Commit 推送到 GitHub 仓库。
+- **优势**: 确保 Streamlit Cloud 部署的应用每天都能展示最新数据（因为 Streamlit Cloud 会随 GitHub 更新而自动重新部署）。
+- **文件**: `.github/workflows/daily_update.yml`
+
+### 2. 钉钉信号推送
+
+- **机制**: 每个交易日北京时间 08:00 自动运行。
+- **功能**:
+  - 自动运行所有策略生成最新信号。
+  - 生成 Markdown 格式的"量化交易早报"。
+  - 推送到您的钉钉群机器人。
+- **文件**: `.github/workflows/daily_notify.yml`
+
+### 3. 配置指南
+
+要启用钉钉推送，您需要在 GitHub 仓库配置 Secrets：
+
+1. **获取钉钉 Token**:
+   - 在钉钉群添加"自定义机器人"。
+   - 安全设置建议选择"自定义关键词"（关键词需包含：**量化**、**交易**）。
+   - 复制 Webhook 地址中的 `access_token`。
+
+2. **配置 GitHub Secrets**:
+   - 进入仓库 **Settings** -> **Secrets and variables** -> **Actions**。
+   - 点击 **New repository secret**。
+   - Name: `DINGTALK_ACCESS_TOKEN`
+   - Value: 粘贴您的 Token。
 
 ## 🎯 策略详解
 
@@ -390,6 +432,9 @@ pandas             # 数据处理
 numpy              # 数值计算
 yfinance           # 金融数据获取
 plotly             # 交互式图表
+schedule           # 任务调度
+requests           # 网络请求
+
 ```
 
 ## ⚠️ 注意事项
@@ -400,6 +445,12 @@ plotly             # 交互式图表
 4. **仅供学习**: 本项目仅用于学习和研究，不构成投资建议
 
 ## 🔄 更新日志
+
+### v2.1 - 2025-11-27 ⭐ 自动化更新
+
+- ✅ 新增 GitHub Actions 自动更新数据流程
+- ✅ 新增 钉钉机器人每日交易信号推送
+- ✅ 修复 Streamlit Cloud 数据持久化问题
 
 ### v2.0 - 2025-11-26 ⭐ 重大更新
 
