@@ -1,0 +1,33 @@
+name: Daily Signal Notification
+
+on:
+  schedule:
+    # 00:00 UTC = 08:00 Beijing (Mon-Fri)
+    - cron: '0 0 * * 1-5'
+    # TEST RUN: 09:01 UTC = 17:01 Beijing
+    - cron: '1 9 * * *'
+  workflow_dispatch:
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          
+      - name: Run notification script
+        env:
+          DINGTALK_ACCESS_TOKEN: ${{ secrets.DINGTALK_ACCESS_TOKEN }}
+          DINGTALK_SECRET: ${{ secrets.DINGTALK_SECRET }}
+        run: python notify_dingtalk.py
