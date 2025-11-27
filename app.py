@@ -65,6 +65,24 @@ initial_capital = st.sidebar.number_input("初始资金", value=10000, step=1000
 # 初始化模块 (使用用户输入的初始资金)
 backtester = Backtester(initial_capital=initial_capital)
 
+# 定义原始数据列的配置和 Tooltip (全局复用)
+raw_data_column_config = {
+    "Open": st.column_config.NumberColumn("Open ⚠", help="开盘价: 交易日开始时的第一笔成交价格。"),
+    "High": st.column_config.NumberColumn("High ⚠", help="最高价: 交易日内的最高成交价格。"),
+    "Low": st.column_config.NumberColumn("Low ⚠", help="最低价: 交易日内的最低成交价格。"),
+    "Close": st.column_config.NumberColumn("Close ⚠", help="收盘价: 交易日结束时的最后一笔成交价格。"),
+    "Volume": st.column_config.NumberColumn("Volume ⚠", help="成交量: 交易日内的总成交股数或合约数。"),
+    "PDH": st.column_config.NumberColumn("PDH ⚠", help="昨日高点: 上一个交易日的最高价。"),
+    "PDL": st.column_config.NumberColumn("PDL ⚠", help="昨日低点: 上一个交易日的最低价。"),
+    "VWAP": st.column_config.NumberColumn("VWAP ⚠", help="成交量加权平均价: 按成交量加权的平均成交价格。"),
+    "MA200": st.column_config.NumberColumn("MA200 ⚠", help="200日均线: 过去200个交易日的收盘价平均值，长期趋势参考。"),
+    "RSI": st.column_config.NumberColumn("RSI ⚠", help="相对强弱指数: 衡量买卖力量对比(0-100)。"),
+    "TP": st.column_config.NumberColumn("TP ⚠", help="典型价格: (High + Low + Close) / 3。"),
+    "TPV": st.column_config.NumberColumn("TPV ⚠", help="典型价格成交量: TP * Volume。"),
+    "CumTPV": st.column_config.NumberColumn("CumTPV ⚠", help="累积 TPV。"),
+    "CumVol": st.column_config.NumberColumn("CumVol ⚠", help="累积成交量。"),
+}
+
 def load_strategy_doc(strategy_display_name):
     """加载策略文档"""
     try:
@@ -88,7 +106,7 @@ def get_action_description(strategy_name, current_row, prev_row=None):
         prev_sig = 0 # 默认前一天空仓
 
     if strategy_name == "Daily DCA":
-        return "买入"
+        return "买入 (定投)"
         
     elif strategy_name == "Pyramid Grid":
         if today_sig == 1:
@@ -102,18 +120,18 @@ def get_action_description(strategy_name, current_row, prev_row=None):
             # Grid 策略持有是常态，不一定每次都输出
             # 为了历史表格整洁，这里可以显示 "持仓" 或 空
             # 如果上一时刻持有底仓以上，则是持仓
-            return "-" # 简化显示
+            return "持仓" # 简化显示
             
     else:
         # Standard 0/1
         if today_sig == 1 and prev_sig == 0:
-            return "买入"
+            return "买入 (全仓)"
         elif today_sig == 1 and prev_sig == 1:
             return "持仓"
         elif today_sig == 0 and prev_sig == 1:
-            return "卖出"
+            return "卖出 (清仓)"
         elif today_sig == 0 and prev_sig == 0:
-            return "-" # 空仓
+            return "空仓" # 空仓
             
     return "?"
 
@@ -193,7 +211,7 @@ if app_mode == "交易信号看板":
                 
                 if s_name == "Daily DCA":
                     # DCA 简单处理
-                    all_actions[disp_name] = "买入"
+                    all_actions[disp_name] = "🟢 买入 (定投)"
                 else:
                     try:
                         if s_name == "Pyramid Grid":
@@ -215,10 +233,10 @@ if app_mode == "交易信号看板":
                                 curr = sig_series.iloc[i]
                                 prev = prev_sig_series.iloc[i]
                                 
-                                if curr == 1 and prev == 0: actions.append("🟢 买入")
+                                if curr == 1 and prev == 0: actions.append("🟢 买入 (全仓)")
                                 elif curr == 1 and prev == 1: actions.append("🔵 持仓")
-                                elif curr == 0 and prev == 1: actions.append("🔴 卖出")
-                                else: actions.append("-")
+                                elif curr == 0 and prev == 1: actions.append("🔴 卖出 (清仓)")
+                                else: actions.append("⚪ 空仓")
                             
                             all_actions[disp_name] = actions
                             
@@ -413,11 +431,11 @@ elif app_mode == "策略回测":
                     st.dataframe(
                         display_df,
                         column_config={
-                            "总收益率": st.column_config.NumberColumn(format="%.2f%%"),
-                            "基准收益": st.column_config.NumberColumn(format="%.2f%%"),
-                            "胜率": st.column_config.NumberColumn(format="%.2f%%"),
-                            "最大回撤": st.column_config.NumberColumn(format="%.2f%%"),
-                            "夏普比率": st.column_config.NumberColumn(format="%.2f"),
+                            "总收益率": st.column_config.NumberColumn("总收益率 ⚠", format="%.2f%%", help="策略在回测期间的累积收益百分比。"),
+                            "基准收益": st.column_config.NumberColumn("基准收益 ⚠", format="%.2f%%", help="同期买入并持有标的（如 SPY）的收益率。"),
+                            "胜率": st.column_config.NumberColumn("胜率 ⚠", format="%.2f%%", help="盈利交易次数占总交易次数的比例。"),
+                            "最大回撤": st.column_config.NumberColumn("最大回撤 ⚠", format="%.2f%%", help="资金曲线从峰值回落的最大跌幅。"),
+                            "夏普比率": st.column_config.NumberColumn("夏普比率 ⚠", format="%.2f", help="衡量风险调整后的收益。数值越高越好。"),
                         },
                         use_container_width=True
                     )
@@ -436,7 +454,7 @@ elif app_mode == "策略回测":
                     
                     # 3. 原始数据查看
                     with st.expander("查看原始数据"):
-                        st.dataframe(df.sort_index(ascending=False))
+                        st.dataframe(df.sort_index(ascending=False), column_config=raw_data_column_config, use_container_width=True)
 
             else:
                 # 单一策略模式 (原有逻辑)
@@ -464,11 +482,11 @@ elif app_mode == "策略回测":
 
                         # 显示 DCA 结果
                         col1, col2, col3, col4, col5 = st.columns(5)
-                        col1.metric("总收益率", f"{metrics['Total Return']:.2%}")
-                        col2.metric("总投入", f"{currency_symbol}{results['Total_Invested'].iloc[-1]:,.0f}")
-                        col3.metric("最终净值", f"{currency_symbol}{results['Equity'].iloc[-1]:,.0f}")
-                        col4.metric("最大回撤", f"{metrics['Max Drawdown']:.2%}")
-                        col5.metric("夏普比率", f"{metrics.get('Sharpe Ratio', 0):.2f}")
+                        col1.metric("总收益率", f"{metrics['Total Return']:.2%}", help="定投结束时的累积收益百分比。")
+                        col2.metric("总投入", f"{currency_symbol}{results['Total_Invested'].iloc[-1]:,.0f}", help="定投期间累计投入的本金总额。")
+                        col3.metric("最终净值", f"{currency_symbol}{results['Equity'].iloc[-1]:,.0f}", help="回测结束时的账户总资产（持仓市值 + 现金）。")
+                        col4.metric("最大回撤", f"{metrics['Max Drawdown']:.2%}", help="资金曲线从峰值回落的最大跌幅。")
+                        col5.metric("夏普比率", f"{metrics.get('Sharpe Ratio', 0):.2f}", help="衡量风险调整后的收益。数值越高越好。")
                         
                         tab1, tab2, tab3 = st.tabs(["回测结果", "交易分析", "历史数据"])
                         with tab1:
@@ -482,7 +500,7 @@ elif app_mode == "策略回测":
                             st.info("定投策略每日买入，无特定交易信号图表。")
                         
                         with tab3:
-                            st.dataframe(df.sort_index(ascending=False))
+                            st.dataframe(df.sort_index(ascending=False), column_config=raw_data_column_config, use_container_width=True)
                     
                     elif strategy_name == "Pyramid Grid":
                         # Pyramid Grid 特殊处理
@@ -497,11 +515,11 @@ elif app_mode == "策略回测":
                         
                         # 显示 Pyramid Grid 结果
                         col1, col2, col3, col4, col5 = st.columns(5)
-                        col1.metric("总收益率", f"{metrics['Total Return']:.2%}")
-                        col2.metric("基准收益", f"{metrics['Benchmark Return']:.2%}")
-                        col3.metric("夏普比率", f"{metrics.get('Sharpe Ratio', 0):.2f}")
-                        col4.metric("胜率", f"{metrics['Win Rate']:.2%}")
-                        col5.metric("最大回撤", f"{metrics['Max Drawdown']:.2%}")
+                        col1.metric("总收益率", f"{metrics['Total Return']:.2%}", help="策略在回测期间的累积收益百分比。")
+                        col2.metric("基准收益", f"{metrics['Benchmark Return']:.2%}", help="同期买入并持有标的（如 SPY）的收益率。")
+                        col3.metric("夏普比率", f"{metrics.get('Sharpe Ratio', 0):.2f}", help="衡量风险调整后的收益。数值越高越好。")
+                        col4.metric("胜率", f"{metrics['Win Rate']:.2%}", help="盈利交易次数占总交易次数的比例。")
+                        col5.metric("最大回撤", f"{metrics['Max Drawdown']:.2%}", help="资金曲线从峰值回落的最大跌幅。")
                         
                         tab1, tab2, tab3 = st.tabs(["回测结果", "仓位分析", "历史数据"])
                         with tab1:
@@ -530,7 +548,7 @@ elif app_mode == "策略回测":
                             st.plotly_chart(fig_position, use_container_width=True)
                         
                         with tab3:
-                            st.dataframe(df.sort_index(ascending=False))
+                            st.dataframe(df.sort_index(ascending=False), column_config=raw_data_column_config, use_container_width=True)
                             
                     else:
                         # 标准策略处理
@@ -548,11 +566,11 @@ elif app_mode == "策略回测":
                         
                         # 指标行
                         col1, col2, col3, col4, col5 = st.columns(5)
-                        col1.metric("总收益率", f"{metrics['Total Return']:.2%}")
-                        col2.metric("基准收益", f"{metrics['Benchmark Return']:.2%}")
-                        col3.metric("胜率", f"{metrics['Win Rate']:.2%}")
-                        col4.metric("最大回撤", f"{metrics['Max Drawdown']:.2%}")
-                        col5.metric("夏普比率", f"{metrics.get('Sharpe Ratio', 0):.2f}")
+                        col1.metric("总收益率", f"{metrics['Total Return']:.2%}", help="策略在回测期间的累积收益百分比。")
+                        col2.metric("基准收益", f"{metrics['Benchmark Return']:.2%}", help="同期买入并持有标的（如 SPY）的收益率，用于对比策略表现。")
+                        col3.metric("胜率", f"{metrics['Win Rate']:.2%}", help="盈利交易次数占总交易次数的比例。")
+                        col4.metric("最大回撤", f"{metrics['Max Drawdown']:.2%}", help="资金曲线从峰值回落的最大跌幅，衡量策略可能面临的最大风险。")
+                        col5.metric("夏普比率", f"{metrics.get('Sharpe Ratio', 0):.2f}", help="衡量风险调整后的收益。数值越高，代表在承担单位风险下获得的超额回报越高（通常 >1 为良好）。")
                         
                         # 标签页视图
                         tab1, tab2, tab3 = st.tabs(["回测结果", "交易分析", "历史数据"])
@@ -602,8 +620,14 @@ elif app_mode == "策略回测":
 
                             fig_candle.update_layout(title="价格行为与信号", xaxis_rangeslider_visible=False)
                             st.plotly_chart(fig_candle, use_container_width=True)
+
+                            with st.expander("⚠ 图表指标说明"):
+                                st.markdown("""
+                                - **PDH (Previous Day High):** 昨日最高价，常作为阻力位参考。
+                                - **PDL (Previous Day Low):** 昨日最低价，常作为支撑位参考。
+                                - **VWAP (Volume Weighted Average Price):** 成交量加权平均价，反映市场平均持仓成本，是机构交易的重要参考线。
+                                - **🔺/🔻:** 策略产生的买入/卖出信号点。
+                                """)
                         
                         with tab3:
-                            st.dataframe(df.sort_index(ascending=False))
-
-
+                            st.dataframe(df.sort_index(ascending=False), column_config=raw_data_column_config, use_container_width=True)

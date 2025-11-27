@@ -69,7 +69,7 @@ class TrendConfluenceStrategy(BaseStrategy):
         - 只做多 (Long Only)
         """
         signals = pd.DataFrame(index=df.index)
-        signals['Signal'] = 0
+        signals['Signal'] = np.nan
         
         # 1. 计算 VWAP (日线数据的月度锚定)
         df['TP'] = (df['High'] + df['Low'] + df['Close']) / 3
@@ -92,13 +92,15 @@ class TrendConfluenceStrategy(BaseStrategy):
         # 3. 生成信号
         # 当 价格 > VWAP 且 VIX < MA20 时买入
         # 当 价格 < VWAP 时平仓 (不做空)
-        # 这里不需要 ffill，因为条件是连续覆盖的
         
         buy_cond = (df['Close'] > df['VWAP']) & vix_cond
         sell_cond = (df['Close'] < df['VWAP'])
         
         signals.loc[buy_cond, 'Signal'] = 1
         signals.loc[sell_cond, 'Signal'] = 0 
+        
+        # 向前填充信号 (持有仓位直到出现卖出信号)
+        signals['Signal'] = signals['Signal'].ffill().fillna(0)
         
         return signals
 
@@ -222,6 +224,9 @@ class PyramidGridStrategy(BaseStrategy):
         last_buy_level = -1      # 最近一次买入层级
         current_level = -1       # 当前已达到的最高层级
         
+        # 新增: 记录每一层的买入价格
+        buy_prices = {}          # {level: price}
+        
         for i in range(len(df)):
             current_price = df['Close'].iloc[i]
             current_rsi = df['RSI'].iloc[i] if not pd.isna(df['RSI'].iloc[i]) else 50
@@ -235,6 +240,8 @@ class PyramidGridStrategy(BaseStrategy):
                 last_buy_price = current_price
                 last_buy_level = 0
                 current_level = 0
+                
+                buy_prices[0] = current_price # 记录 Level 0 价格
                 continue
             
             # 检查止盈条件 (上涨5%)
@@ -244,9 +251,21 @@ class PyramidGridStrategy(BaseStrategy):
                     # 触发止盈：卖出最近一笔的80%
                     signals.iloc[i, signals.columns.get_loc('Signal')] = -1
                     signals.iloc[i, signals.columns.get_loc('SellRatio')] = self.sell_ratio
-                    # 重置last_buy_price，避免重复触发
-                    last_buy_price = None
-                    last_buy_level = -1
+                    
+                    # 更新状态：回退一个层级
+                    current_level = max(0, last_buy_level - 1)
+                    
+                    # 关键修复: 恢复上一层的买入信息
+                    last_buy_level = current_level
+                    last_buy_price = buy_prices.get(current_level)
+                    
+                    # 如果回退到了 Level 0, last_buy_price 应该是 Level 0 的买入价
+                    # buy_prices[0] 在第一天已经记录
+                    
+                    # 如果买入信息丢失(防御性编程), 重置
+                    if last_buy_price is None:
+                        last_buy_price = avg_cost # 回退到均价作为近似
+                        
                     continue
             
             # 检查加仓条件 (相对持仓均价下跌)
@@ -284,6 +303,8 @@ class PyramidGridStrategy(BaseStrategy):
                         last_buy_price = current_price
                         last_buy_level = level
                         current_level = level
+                        
+                        buy_prices[level] = current_price # 记录该层价格
                         break  # 一天只买入一个层级
         
         return signals
