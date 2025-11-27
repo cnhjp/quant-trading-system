@@ -4,7 +4,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 from data_loader import DataLoader
-from strategies import LiquidityGrabStrategy, TrendConfluenceStrategy, MeanReversionStrategy, DailyDCAStrategy, PyramidGridStrategy
+from strategies import LiquidityGrabStrategy, TrendConfluenceStrategy, MeanReversionStrategy, DailyDCAStrategy, PyramidGridStrategy, MA200TrendStrategy, TurnOfTheMonthStrategy, VIXSwitchStrategy
 from backtester import Backtester
 
 # 页面配置
@@ -19,7 +19,10 @@ strategies = {
     "Trend Confluence": TrendConfluenceStrategy(),
     "Mean Reversion (RSI)": MeanReversionStrategy(),
     "Daily DCA": DailyDCAStrategy(),
-    "Pyramid Grid": PyramidGridStrategy()
+    "Pyramid Grid": PyramidGridStrategy(),
+    "MA200 Trend": MA200TrendStrategy(),
+    "Turn of the Month": TurnOfTheMonthStrategy(),
+    "VIX Switch": VIXSwitchStrategy()
 }
 
 # 侧边栏
@@ -37,7 +40,10 @@ strategy_display_names = {
     "Trend Confluence": "趋势共振策略",
     "Mean Reversion (RSI)": "均值回归策略",
     "Daily DCA": "每日定投策略",
-    "Pyramid Grid": "金字塔网格策略"
+    "Pyramid Grid": "金字塔网格策略",
+    "MA200 Trend": "均线趋势策略",
+    "Turn of the Month": "月底效应策略",
+    "VIX Switch": "波动率控制策略"
 }
 # 反向映射以获取策略字典的键
 display_to_key = {v: k for k, v in strategy_display_names.items()}

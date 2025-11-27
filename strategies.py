@@ -287,3 +287,89 @@ class PyramidGridStrategy(BaseStrategy):
                         break  # 一天只买入一个层级
         
         return signals
+
+class MA200TrendStrategy(BaseStrategy):
+    def __init__(self):
+        super().__init__("MA200 Trend")
+
+    def generate_signals(self, df: pd.DataFrame, **kwargs) -> pd.DataFrame:
+        """
+        经典均线趋势策略 (The 200-Day SMA Trend Strategy)
+        - 买入/持有: 收盘价 > MA200
+        - 卖出/空仓: 收盘价 < MA200
+        """
+        signals = pd.DataFrame(index=df.index)
+        signals['Signal'] = 0
+        
+        # 计算 MA200
+        df['MA200'] = df['Close'].rolling(window=200).mean()
+        
+        # 信号生成
+        buy_cond = df['Close'] > df['MA200']
+        signals.loc[buy_cond, 'Signal'] = 1
+        
+        return signals
+
+class TurnOfTheMonthStrategy(BaseStrategy):
+    def __init__(self):
+        super().__init__("Turn of the Month")
+
+    def generate_signals(self, df: pd.DataFrame, **kwargs) -> pd.DataFrame:
+        """
+        月底效应策略 (Turn of the Month)
+        - 买入: 月底倒数第4个交易日收盘
+        - 卖出: 下月初第3个交易日收盘
+        - 逻辑: 在每个月的最后4个交易日和前3个交易日持有仓位
+        """
+        signals = pd.DataFrame(index=df.index)
+        signals['Signal'] = 0
+        
+        # 确保索引是 DatetimeIndex
+        if not isinstance(df.index, pd.DatetimeIndex):
+            df.index = pd.to_datetime(df.index)
+            
+        # 按年-月分组
+        grouper = df.groupby(df.index.to_period('M'))
+        
+        for name, group in grouper:
+            days = group.index
+            if len(days) >= 7:
+                # 月底最后4天
+                last_4 = days[-4:]
+                # 月初前3天
+                first_3 = days[:3]
+                
+                signals.loc[last_4, 'Signal'] = 1
+                signals.loc[first_3, 'Signal'] = 1
+                
+        return signals
+
+class VIXSwitchStrategy(BaseStrategy):
+    def __init__(self):
+        super().__init__("VIX Switch")
+
+    def generate_signals(self, df: pd.DataFrame, vix_df: pd.DataFrame = None, **kwargs) -> pd.DataFrame:
+        """
+        波动率控制策略 (VIX Switch)
+        - 持有: VIX < VIX的50日均线
+        - 空仓: VIX > VIX的50日均线
+        """
+        signals = pd.DataFrame(index=df.index)
+        signals['Signal'] = 0
+        
+        if vix_df is not None:
+            # 对齐 VIX 数据
+            if not isinstance(vix_df.index, pd.DatetimeIndex):
+                vix_df.index = pd.to_datetime(vix_df.index)
+            
+            vix_aligned = vix_df['Close'].reindex(df.index).fillna(method='ffill')
+            
+            # 计算 VIX MA50
+            vix_ma50 = vix_aligned.rolling(window=50).mean()
+            
+            # 生成信号
+            # VIX < MA50 -> 买入/持有 (Signal 1)
+            buy_cond = vix_aligned < vix_ma50
+            signals.loc[buy_cond, 'Signal'] = 1
+        
+        return signals
