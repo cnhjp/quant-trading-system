@@ -145,6 +145,9 @@ def generate_report():
     if len(report_lines) == 1:
         report_lines.append("今日无特定交易信号建议。")
         
+    # 添加页脚以匹配常见的钉钉自定义关键词 (防止 310000 错误)
+    report_lines.append("\n> 系统自动推送 | 关键词: 量化 交易 测试 通知")
+        
     full_text = "\n\n".join(report_lines)
     send_dingtalk_markdown("量化交易早报", full_text)
 

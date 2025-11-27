@@ -4,8 +4,8 @@ on:
   schedule:
     # 00:00 UTC = 08:00 Beijing (Mon-Fri)
     - cron: '0 0 * * 1-5'
-    # TEST RUN: 09:01 UTC = 17:01 Beijing
-    - cron: '1 9 * * *'
+    # TEST RUN: 09:10 UTC = 17:10 Beijing
+    - cron: '10 9 * * *'
   workflow_dispatch:
 
 jobs:
