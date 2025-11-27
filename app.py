@@ -48,7 +48,9 @@ strategy_display_names = {
 # 反向映射以获取策略字典的键
 display_to_key = {v: k for k, v in strategy_display_names.items()}
 
-compare_mode = st.sidebar.checkbox("对比所有策略")
+compare_mode = st.sidebar.checkbox("策略对比模式")
+
+selected_comparison_strategies = []
 
 if not compare_mode:
     # 默认选择每日定投 (index 3)
@@ -56,6 +58,11 @@ if not compare_mode:
     strategy_name = display_to_key[selected_strategy_display]
 else:
     strategy_name = None # In compare mode, we ignore single strategy selection
+    selected_comparison_strategies = st.sidebar.multiselect(
+        "选择要对比的策略",
+        options=list(strategy_display_names.values()),
+        default=list(strategy_display_names.values())
+    )
 
 # 默认回测周期 1y (index 0)
 period = st.sidebar.selectbox("回测周期", ["1y", "2y", "5y", "10y"], index=0)
@@ -92,8 +99,19 @@ if run_backtest:
                 comparison_results = []
                 equity_curves = {}
                 
-                # 遍历所有策略
-                for s_name, strategy in strategies.items():
+                # 确定要运行的策略
+                strategies_to_run = {}
+                if selected_comparison_strategies:
+                    for disp in selected_comparison_strategies:
+                        k = display_to_key[disp]
+                        strategies_to_run[k] = strategies[k]
+                
+                if not strategies_to_run:
+                    st.warning("请至少选择一个策略进行对比。")
+                    st.stop()
+
+                # 遍历选中的策略
+                for s_name, strategy in strategies_to_run.items():
                     # 生成信号
                     if s_name == "Daily DCA":
                         res = backtester.run_dca_backtest(df)
@@ -152,7 +170,7 @@ if run_backtest:
                 
                 # 3. 原始数据查看
                 with st.expander("查看原始数据"):
-                    st.dataframe(df)
+                    st.dataframe(df.sort_index(ascending=False))
 
             else:
                 # 单一策略模式 (原有逻辑)
@@ -180,7 +198,7 @@ if run_backtest:
                         st.info("定投策略每日买入，无特定交易信号图表。")
                     
                     with tab3:
-                        st.dataframe(df)
+                        st.dataframe(df.sort_index(ascending=False))
                 
                 elif strategy_name == "Pyramid Grid":
                     # Pyramid Grid 特殊处理
@@ -224,7 +242,7 @@ if run_backtest:
                         st.plotly_chart(fig_position, use_container_width=True)
                     
                     with tab3:
-                        st.dataframe(df)
+                        st.dataframe(df.sort_index(ascending=False))
                         
                 else:
                     # 标准策略处理
@@ -294,7 +312,7 @@ if run_backtest:
                         st.plotly_chart(fig_candle, use_container_width=True)
                     
                     with tab3:
-                        st.dataframe(df)
+                        st.dataframe(df.sort_index(ascending=False))
 
 else:
     st.info("请在左侧选择参数并点击 '开始回测' 按钮。")
