@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import os
 
 from data_loader import DataLoader
 from strategies import LiquidityGrabStrategy, TrendConfluenceStrategy, MeanReversionStrategy, DailyDCAStrategy, PyramidGridStrategy, MA200TrendStrategy, TurnOfTheMonthStrategy, VIXSwitchStrategy
@@ -31,11 +32,40 @@ st.sidebar.title("配置面板")
 # 模式选择
 app_mode = st.sidebar.radio("功能模式", ["策略回测", "交易信号看板"])
 
-ticker = st.sidebar.selectbox("选择标的", ["SPY", "QQQ"])
+# 标的映射
+TICKER_MAP = {
+    "SPY (标普500)": "SPY",
+    "QQQ (纳指100)": "QQQ",
+    "3033.HK (恒生科技)": "3033.HK",
+    "510300.SS (沪深300)": "510300.SS",
+    "516350.SS (易方达芯片ETF)": "516350.SS"
+}
+
+selected_ticker_label = st.sidebar.selectbox("选择标的", list(TICKER_MAP.keys()))
+ticker = TICKER_MAP[selected_ticker_label]
+
+# 确定货币符号
+if ticker.endswith(".HK"):
+    currency_symbol = "HK$"
+elif ticker.endswith(".SS") or ticker.endswith(".SZ"):
+    currency_symbol = "¥"
+else:
+    currency_symbol = "$"
 initial_capital = st.sidebar.number_input("初始资金", value=10000, step=1000)
 
 # 初始化模块 (使用用户输入的初始资金)
 backtester = Backtester(initial_capital=initial_capital)
+
+def load_strategy_doc(strategy_display_name):
+    """加载策略文档"""
+    try:
+        file_path = os.path.join("docs", f"{strategy_display_name}.md")
+        if os.path.exists(file_path):
+            with open(file_path, "r", encoding="utf-8") as f:
+                return f.read()
+    except Exception as e:
+        return f"无法加载文档: {e}"
+    return None
 
 def get_action_description(strategy_name, current_row, prev_row=None):
     """
@@ -247,15 +277,13 @@ elif app_mode == "策略回测":
         )
 
     # 默认回测周期 1y (index 0)
-    period = st.sidebar.selectbox("回测周期", ["1y", "2y", "5y", "10y"], index=0)
+    period = st.sidebar.selectbox("回测周期", ["3mo", "6mo", "1y", "2y", "5y", "10y"], index=2)
 
     # 双模式逻辑
     interval = "1d"
-    if period in ["1mo", "3mo"]: 
-        pass
 
-    run_backtest = st.sidebar.button("开始回测")
-    update_data = st.sidebar.button("更新数据")
+    # run_backtest = st.sidebar.button("开始回测") # Removed for auto-run
+    update_data = st.sidebar.button("强制更新数据")
 
     if update_data:
         with st.spinner(f"正在更新 {ticker} 的数据..."):
@@ -265,16 +293,23 @@ elif app_mode == "策略回测":
     # 主区域
     st.title(f"{ticker} - 策略回测")
 
-    if run_backtest:
-        with st.spinner("正在获取数据并执行回测..."):
-            # 1. 获取数据
-            df = data_loader.fetch_data(ticker, period=period, interval=interval)
-            vix_df = data_loader.get_vix(period=period, interval=interval)
-            
-            if df.empty:
-                st.error("未找到数据！")
-            else:
-                if compare_mode:
+    # 即时显示策略文档 (不需要点击开始回测)
+    if not compare_mode and strategy_name:
+        doc_content = load_strategy_doc(selected_strategy_display)
+        if doc_content:
+            with st.expander(f"📖 策略说明: {selected_strategy_display}"):
+                st.markdown(doc_content)
+
+    # 自动运行回测
+    with st.spinner("正在获取数据并执行回测..."):
+        # 1. 获取数据
+        df = data_loader.fetch_data(ticker, period=period, interval=interval)
+        vix_df = data_loader.get_vix(period=period, interval=interval)
+        
+        if df.empty:
+            st.error("未找到数据！请检查标的是否正确或网络连接。")
+        else:
+            if compare_mode:
                     # 对比模式逻辑
                     st.subheader("策略对比分析")
                     
@@ -296,6 +331,7 @@ elif app_mode == "策略回测":
                     for s_name, strategy in strategies_to_run.items():
                         # 生成信号
                         if s_name == "Daily DCA":
+                            sig = strategy.generate_signals(df)
                             res = backtester.run_dca_backtest(df)
                             met = backtester.calculate_metrics(res, is_dca=True)
                         elif s_name == "Pyramid Grid":
@@ -322,7 +358,7 @@ elif app_mode == "策略回测":
                         
                         # 保存基准 (只需要一次)
                         if 'Benchmark_Equity' not in equity_curves:
-                            equity_curves['基准 (SPY 买入持有)'] = res['Benchmark_Equity']
+                            equity_curves[f'基准 ({ticker} 买入持有)'] = res['Benchmark_Equity']
 
                     # 1. 指标对比表
                     comp_df = pd.DataFrame(comparison_results).set_index('Strategy')
@@ -360,17 +396,17 @@ elif app_mode == "策略回测":
                         
                         fig_comp.add_trace(go.Scatter(x=curve.index, y=curve, mode='lines', name=name, line=line_props))
                     
-                    fig_comp.update_layout(title="全策略资金曲线对比", xaxis_title="日期", yaxis_title="净值 ($)")
+                    fig_comp.update_layout(title="全策略资金曲线对比", xaxis_title="日期", yaxis_title=f"净值 ({currency_symbol})")
                     st.plotly_chart(fig_comp, use_container_width=True)
                     
                     # 3. 原始数据查看
                     with st.expander("查看原始数据"):
                         st.dataframe(df.sort_index(ascending=False))
 
-                else:
-                    # 单一策略模式 (原有逻辑)
-                    
-                    # 获取通用信号（对于DCA和Grid，虽然逻辑不同，但为了获取操作建议，我们需要信号对象）
+            else:
+                # 单一策略模式 (原有逻辑)
+                
+                # 获取通用信号（对于DCA和Grid，虽然逻辑不同，但为了获取操作建议，我们需要信号对象）
                     # 注意：下面的 if/else 块里已经有了各自的逻辑，这里主要为了提取“今日操作”
                     
                     current_action = "未知"
@@ -394,8 +430,8 @@ elif app_mode == "策略回测":
                         # 显示 DCA 结果
                         col1, col2, col3, col4 = st.columns(4)
                         col1.metric("总收益率", f"{metrics['Total Return']:.2%}")
-                        col2.metric("总投入", f"${results['Total_Invested'].iloc[-1]:,.0f}")
-                        col3.metric("最终净值", f"${results['Equity'].iloc[-1]:,.0f}")
+                        col2.metric("总投入", f"{currency_symbol}{results['Total_Invested'].iloc[-1]:,.0f}")
+                        col3.metric("最终净值", f"{currency_symbol}{results['Equity'].iloc[-1]:,.0f}")
                         col4.metric("最大回撤", f"{metrics['Max Drawdown']:.2%}")
                         
                         tab1, tab2, tab3 = st.tabs(["回测结果", "交易分析", "历史数据"])
@@ -403,7 +439,7 @@ elif app_mode == "策略回测":
                             fig_equity = go.Figure()
                             fig_equity.add_trace(go.Scatter(x=results.index, y=results['Equity'], mode='lines', name='定投净值'))
                             fig_equity.add_trace(go.Scatter(x=results.index, y=results['Total_Invested'], mode='lines', name='总投入成本', line=dict(dash='dash', color='gray')))
-                            fig_equity.update_layout(title="定投资金曲线 vs 成本", xaxis_title="日期", yaxis_title="金额 ($)")
+                            fig_equity.update_layout(title="定投资金曲线 vs 成本", xaxis_title="日期", yaxis_title=f"金额 ({currency_symbol})")
                             st.plotly_chart(fig_equity, use_container_width=True)
                         
                         with tab2:
@@ -437,7 +473,7 @@ elif app_mode == "策略回测":
                             fig_equity = go.Figure()
                             fig_equity.add_trace(go.Scatter(x=results.index, y=results['Equity'], mode='lines', name='策略净值'))
                             fig_equity.add_trace(go.Scatter(x=results.index, y=results['Benchmark_Equity'], mode='lines', name='基准净值 (一次性买入)', line=dict(dash='dash', color='gray')))
-                            fig_equity.update_layout(title="金字塔网格 vs 一次性投入", xaxis_title="日期", yaxis_title="净值 ($)")
+                            fig_equity.update_layout(title="金字塔网格 vs 一次性投入", xaxis_title="日期", yaxis_title=f"净值 ({currency_symbol})")
                             st.plotly_chart(fig_equity, use_container_width=True)
                         
                         with tab2:
@@ -448,7 +484,7 @@ elif app_mode == "策略回测":
                                 st.metric("可交易股数", f"{results['Tradable_Position'].iloc[-1]:.2f}")
                             with col_b:
                                 st.metric("总持仓股数", f"{results['Total_Shares'].iloc[-1]:.2f}")
-                                st.metric("持仓均价", f"${results['Avg_Cost'].iloc[-1]:.2f}")
+                                st.metric("持仓均价", f"{currency_symbol}{results['Avg_Cost'].iloc[-1]:.2f}")
                             
                             # 持仓演变图
                             fig_position = go.Figure()
@@ -488,10 +524,10 @@ elif app_mode == "策略回测":
                             # 资金曲线
                             fig_equity = go.Figure()
                             fig_equity.add_trace(go.Scatter(x=results.index, y=results['Equity'], mode='lines', name='策略净值'))
-                            fig_equity.add_trace(go.Scatter(x=results.index, y=results['Benchmark_Equity'], mode='lines', name='基准净值 (SPY持有)', line=dict(dash='dash', color='gray')))
-                            fig_equity.update_layout(title="资金曲线 vs 基准", xaxis_title="日期", yaxis_title="净值 ($)")
+                            fig_equity.add_trace(go.Scatter(x=results.index, y=results['Benchmark_Equity'], mode='lines', name=f'基准净值 ({ticker}持有)', line=dict(dash='dash', color='gray')))
+                            fig_equity.update_layout(title="资金曲线 vs 基准", xaxis_title="日期", yaxis_title=f"净值 ({currency_symbol})")
                             st.plotly_chart(fig_equity, use_container_width=True)
-                            
+                        
                         with tab2:
                             # 带指标的 K 线图
                             # 创建子图: 第 1 行价格，第 2 行成交量/信号
@@ -533,6 +569,4 @@ elif app_mode == "策略回测":
                         with tab3:
                             st.dataframe(df.sort_index(ascending=False))
 
-    else:
-        st.info("请在左侧选择参数并点击 '开始回测' 按钮。")
 
