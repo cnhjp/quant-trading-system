@@ -28,4 +28,4 @@ jobs:
         env:
           DINGTALK_ACCESS_TOKEN: ${{ secrets.DINGTALK_ACCESS_TOKEN }}
           DINGTALK_SECRET: ${{ secrets.DINGTALK_SECRET }}
-        run: python notify_dingtalk.py
+        run: python -m scripts.notify_dingtalk

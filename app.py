@@ -4,10 +4,10 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import os
 
-from data_loader import DataLoader
-from strategies import LiquidityGrabStrategy, TrendConfluenceStrategy, MeanReversionStrategy, DailyDCAStrategy, PyramidGridStrategy, MA200TrendStrategy, TurnOfTheMonthStrategy, VIXSwitchStrategy
-from backtester import Backtester
-from config import TICKER_MAP
+from core.data_loader import DataLoader
+from core.strategies import LiquidityGrabStrategy, TrendConfluenceStrategy, MeanReversionStrategy, DailyDCAStrategy, PyramidGridStrategy, MA200TrendStrategy, TurnOfTheMonthStrategy, VIXSwitchStrategy
+from core.backtester import Backtester
+from config.settings import TICKER_MAP
 
 # 页面配置
 st.set_page_config(page_title="量化交易回测系统", layout="wide")
@@ -120,13 +120,13 @@ def get_action_description(strategy_name, current_row, prev_row=None):
     else:
         # Standard 0/1
         if today_sig == 1 and prev_sig == 0:
-            return "买入 (全仓)"
+            return "买入 (100% 全仓)"
         elif today_sig == 1 and prev_sig == 1:
-            return "持仓"
+            return "持仓 (100%)"
         elif today_sig == 0 and prev_sig == 1:
-            return "卖出 (清仓)"
+            return "卖出 (100% 清仓)"
         elif today_sig == 0 and prev_sig == 0:
-            return "空仓" # 空仓
+            return "空仓 (0%)"
             
     return "?"
 
@@ -161,11 +161,11 @@ def get_strategy_action(strategy_name, signals):
     else:
         # Standard 0/1 State Strategies
         if today_sig == 1 and prev_sig == 0:
-            return "买入 (开仓)", last_date
+            return "买入 (100% 全仓)", last_date
         elif today_sig == 1 and prev_sig == 1:
-            return "持仓", last_date
+            return "持仓 (100%)", last_date
         elif today_sig == 0 and prev_sig == 1:
-            return "卖出 (平仓)", last_date
+            return "卖出 (100% 清仓)", last_date
         elif today_sig == 0 and prev_sig == 0:
             return "空仓 / 观望", last_date
             
@@ -228,9 +228,9 @@ if app_mode == "交易信号看板":
                                 curr = sig_series.iloc[i]
                                 prev = prev_sig_series.iloc[i]
                                 
-                                if curr == 1 and prev == 0: actions.append("🟢 买入 (全仓)")
-                                elif curr == 1 and prev == 1: actions.append("🔵 持仓")
-                                elif curr == 0 and prev == 1: actions.append("🔴 卖出 (清仓)")
+                                if curr == 1 and prev == 0: actions.append("🟢 买入 (100% 全仓)")
+                                elif curr == 1 and prev == 1: actions.append("🔵 持仓 (100%)")
+                                elif curr == 0 and prev == 1: actions.append("🔴 卖出 (100% 清仓)")
                                 else: actions.append("⚪ 空仓")
                             
                             all_actions[disp_name] = actions

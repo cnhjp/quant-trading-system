@@ -3,9 +3,9 @@ import requests
 import pandas as pd
 import json
 from datetime import datetime
-from config import TICKER_MAP
-from data_loader import DataLoader
-from strategies import (
+from config.settings import TICKER_MAP
+from core.data_loader import DataLoader
+from core.strategies import (
     LiquidityGrabStrategy, 
     TrendConfluenceStrategy, 
     MeanReversionStrategy, 
@@ -29,7 +29,8 @@ def get_strategies():
         "金字塔网格": PyramidGridStrategy(),
         "均线趋势": MA200TrendStrategy(),
         "月底效应": TurnOfTheMonthStrategy(),
-        "波动率控制": VIXSwitchStrategy()
+        "波动率控制": VIXSwitchStrategy(),
+        "每日定投": DailyDCAStrategy()
     }
 
 def send_dingtalk_markdown(title, text):
@@ -108,18 +109,26 @@ def generate_report():
                 # 解析动作为人类可读文本
                 if strat_name == "金字塔网格":
                     if curr_sig == 1:
-                         action = f"**买入** (层级 {sigs['BuyLevel'].iloc[-1]})"
+                         # 金字塔网格买入
+                         amt = sigs['BuyAmount'].iloc[-1]
+                         lvl = sigs['BuyLevel'].iloc[-1]
+                         action = f"**买入** {amt:.0%} 仓位 (Level {lvl})"
                     elif curr_sig == -1:
-                         action = f"**卖出** (比例 {sigs['SellRatio'].iloc[-1]:.0%})"
+                         # 金字塔网格卖出
+                         ratio = sigs['SellRatio'].iloc[-1]
+                         action = f"**卖出** 该层 {ratio:.0%} 仓位 (止盈)"
+                elif strat_name == "每日定投":
+                     # 定投策略总是买入
+                     action = "**买入** (定投固定金额) 💰"
                 else:
+                    # 标准策略
                     if curr_sig == 1 and prev_sig == 0:
-                        action = "**买入 (Open)** 🚀"
+                        action = "**买入** (100% 全仓) 🚀"
                     elif curr_sig == 0 and prev_sig == 1:
-                        action = "**卖出 (Close)** 📉"
+                        action = "**卖出** (100% 清仓) 📉"
                     # 仅报告变动或持仓?
-                    # 策略日报通常希望能看到持仓状态。
                     elif curr_sig == 1:
-                        action = "持仓 (Hold)"
+                        action = "持仓 (100%)"
                 
                 # 只有当有特定动作(买/卖)或者处于持仓状态时才报告?
                 # 为了简洁，我们只报告 "买入"、"卖出" 的变化，或者如果用户特别关心持仓也可以加上。
@@ -145,8 +154,8 @@ def generate_report():
     if len(report_lines) == 1:
         report_lines.append("今日无特定交易信号建议。")
         
-    # 添加页脚以匹配常见的钉钉自定义关键词 (防止 310000 错误)
-    report_lines.append("\n> 系统自动推送 | 关键词: 量化 交易 测试 通知")
+    # 添加页脚以匹配常见的钉钉自定义关键词 (防止 310000 错误) 并附带链接
+    report_lines.append("\n---\n[📈 点击查看完整图表与策略详情](https://cnhjp-quant-trading-system.streamlit.app/)\n> 系统自动推送 | 关键词: 量化 交易 测试 通知")
         
     full_text = "\n\n".join(report_lines)
     send_dingtalk_markdown("量化交易早报", full_text)

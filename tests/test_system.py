@@ -1,7 +1,12 @@
-from data_loader import DataLoader
-from strategies import LiquidityGrabStrategy, TrendConfluenceStrategy
-from backtester import Backtester
+from core.data_loader import DataLoader
+from core.strategies import LiquidityGrabStrategy, TrendConfluenceStrategy
+from core.backtester import Backtester
 import pandas as pd
+import sys
+import os
+
+# Add root directory to path so core can be imported
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 def test_system():
     print("Initializing...")

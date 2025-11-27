@@ -1,7 +1,7 @@
 import os
 from datetime import datetime
-from data_loader import DataLoader
-from config import TICKER_MAP
+from core.data_loader import DataLoader
+from config.settings import TICKER_MAP
 
 def update_data():
     print(f"[{datetime.now()}] Starting daily data update...")
