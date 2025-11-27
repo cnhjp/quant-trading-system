@@ -10,8 +10,8 @@ ENV/
 .venv
 
 # Data cache
-data/
-*.csv
+# data/  <-- Commented out to allow data persistence for Streamlit Cloud
+# *.csv  <-- Commented out to allow data persistence for Streamlit Cloud
 
 # IDE
 .vscode/

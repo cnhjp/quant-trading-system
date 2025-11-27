@@ -7,6 +7,7 @@ import os
 from data_loader import DataLoader
 from strategies import LiquidityGrabStrategy, TrendConfluenceStrategy, MeanReversionStrategy, DailyDCAStrategy, PyramidGridStrategy, MA200TrendStrategy, TurnOfTheMonthStrategy, VIXSwitchStrategy
 from backtester import Backtester
+from config import TICKER_MAP
 
 # 页面配置
 st.set_page_config(page_title="量化交易回测系统", layout="wide")
@@ -33,13 +34,7 @@ st.sidebar.title("配置面板")
 app_mode = st.sidebar.radio("功能模式", ["策略回测", "交易信号看板"])
 
 # 标的映射
-TICKER_MAP = {
-    "SPY (标普500)": "SPY",
-    "QQQ (纳指100)": "QQQ",
-    "3033.HK (恒生科技)": "3033.HK",
-    "510300.SS (沪深300)": "510300.SS",
-    "516350.SS (易方达芯片ETF)": "516350.SS"
-}
+# TICKER_MAP imported from config.py
 
 ticker_source = st.sidebar.radio("标的来源", ["预设标的", "自定义标的"])
 
