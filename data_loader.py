@@ -19,12 +19,34 @@ class DataLoader:
         }
         return mapping.get(period, 0)
 
-    def fetch_data(self, ticker: str, period: str = "5y", interval: str = "1d", force_update: bool = False) -> pd.DataFrame:
+    def fetch_data(self, ticker: str, period: str = "5y", interval: str = "1d", force_update: bool = False, cache_data: bool = True) -> pd.DataFrame:
         """
         从 yfinance 或本地缓存获取数据。
         优化逻辑：优先使用已存在的更长周期数据，并清理较短周期的冗余文件。
+        
+        参数:
+            cache_data: 是否使用/保存缓存。如果为 False，则直接下载且不保存 (用于临时查询)。
         """
         safe_ticker = ticker.replace("^", "")
+        
+        # === 临时查询模式 (不使用缓存) ===
+        if not cache_data:
+            print(f"Fetching temporary data for {ticker} (no cache)...")
+            try:
+                df = yf.download(ticker, period=period, interval=interval, progress=False)
+                if df.empty:
+                    print(f"Warning: No data found for {ticker}")
+                    return pd.DataFrame()
+                
+                if isinstance(df.columns, pd.MultiIndex):
+                    df.columns = df.columns.get_level_values(0)
+                df = df[['Open', 'High', 'Low', 'Close', 'Volume']]
+                return df
+            except Exception as e:
+                print(f"Error fetching data for {ticker}: {e}")
+                return pd.DataFrame()
+
+        # === 正常缓存模式 ===
         requested_days = self._get_period_days(period)
         
         # 1. 扫描现有的该标的、该间隔的所有文件
@@ -163,6 +185,6 @@ class DataLoader:
             
         return True
 
-    def get_vix(self, period="5y", interval="1d"):
+    def get_vix(self, period="5y", interval="1d", **kwargs):
         """获取与主时间范围对齐的 VIX 数据辅助函数。"""
-        return self.fetch_data("^VIX", period, interval)
+        return self.fetch_data("^VIX", period, interval, **kwargs)

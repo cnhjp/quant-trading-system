@@ -42,15 +42,29 @@ TICKER_MAP = {
 }
 
 selected_ticker_label = st.sidebar.selectbox("选择标的", list(TICKER_MAP.keys()))
-ticker = TICKER_MAP[selected_ticker_label]
+custom_ticker = st.sidebar.text_input("或输入自定义标的 (例如 AAPL, NVDA)", "")
 
-# 确定货币符号
-if ticker.endswith(".HK"):
-    currency_symbol = "HK$"
-elif ticker.endswith(".SS") or ticker.endswith(".SZ"):
-    currency_symbol = "¥"
+if custom_ticker.strip():
+    ticker = custom_ticker.strip().upper()
+    use_cache = False
+    # 简单判断货币
+    if ticker.endswith(".HK"):
+        currency_symbol = "HK$"
+    elif ticker.endswith(".SS") or ticker.endswith(".SZ"):
+        currency_symbol = "¥"
+    else:
+        currency_symbol = "$"
 else:
-    currency_symbol = "$"
+    ticker = TICKER_MAP[selected_ticker_label]
+    use_cache = True
+    # 确定货币符号 (保持原有逻辑)
+    if ticker.endswith(".HK"):
+        currency_symbol = "HK$"
+    elif ticker.endswith(".SS") or ticker.endswith(".SZ"):
+        currency_symbol = "¥"
+    else:
+        currency_symbol = "$"
+
 initial_capital = st.sidebar.number_input("初始资金", value=10000, step=1000)
 
 # 初始化模块 (使用用户输入的初始资金)
@@ -169,7 +183,7 @@ if app_mode == "交易信号看板":
     
     # 1. 获取数据 (默认取最近 2 年数据以保证指标计算足够)
     with st.spinner("正在分析最新市场数据..."):
-        df = data_loader.fetch_data(ticker, period="2y", interval="1d")
+        df = data_loader.fetch_data(ticker, period="2y", interval="1d", cache_data=use_cache)
         vix_df = data_loader.get_vix(period="2y", interval="1d")
         
         if df.empty:
@@ -287,7 +301,7 @@ elif app_mode == "策略回测":
 
     if update_data:
         with st.spinner(f"正在更新 {ticker} 的数据..."):
-            data_loader.fetch_data(ticker, period=period, interval=interval, force_update=True)
+            data_loader.fetch_data(ticker, period=period, interval=interval, force_update=True, cache_data=use_cache)
             st.sidebar.success(f"{ticker} 数据已更新！")
 
     # 主区域
@@ -303,7 +317,7 @@ elif app_mode == "策略回测":
     # 自动运行回测
     with st.spinner("正在获取数据并执行回测..."):
         # 1. 获取数据
-        df = data_loader.fetch_data(ticker, period=period, interval=interval)
+        df = data_loader.fetch_data(ticker, period=period, interval=interval, cache_data=use_cache)
         vix_df = data_loader.get_vix(period=period, interval=interval)
         
         if df.empty:
@@ -360,6 +374,22 @@ elif app_mode == "策略回测":
                         if 'Benchmark_Equity' not in equity_curves:
                             equity_curves[f'基准 ({ticker} 买入持有)'] = res['Benchmark_Equity']
 
+                    # 添加基准表现到表格
+                    if comparison_results and not df.empty:
+                        # 使用最后一次计算的 res (包含 Benchmark_Equity)
+                        bench_res = res.copy()
+                        bench_res['Equity'] = res['Benchmark_Equity']
+                        # 计算基准指标
+                        bench_met = backtester.calculate_metrics(bench_res)
+                        
+                        bench_met['Strategy'] = f'📊 基准 ({ticker})'
+                        bench_met['今日操作'] = '-'
+                        bench_met['数据日期'] = action_date.strftime('%Y-%m-%d') if action_date else "-"
+                        # 基准的基准收益就是它自己，或者设为 0 表示无超额
+                        bench_met['Benchmark Return'] = bench_met['Total Return'] 
+                        
+                        comparison_results.append(bench_met)
+
                     # 1. 指标对比表
                     comp_df = pd.DataFrame(comparison_results).set_index('Strategy')
                     # 重命名列为中文
@@ -377,15 +407,25 @@ elif app_mode == "策略回测":
                     cols = [c for c in cols if c in comp_df.columns]
                     comp_df = comp_df[cols]
 
-                    # 格式化列
-                    format_dict = {
-                        "总收益率": "{:.2%}",
-                        "基准收益": "{:.2%}",
-                        "胜率": "{:.2%}",
-                        "最大回撤": "{:.2%}",
-                        "夏普比率": "{:.2f}"
-                    }
-                    st.table(comp_df.style.format(format_dict))
+                    # 转换百分比数值，以便 st.dataframe 正确显示 (它不会自动乘以100)
+                    # 注意：这里我们创建一个副本用于显示，以免影响后续逻辑（虽然这里是最后一步）
+                    display_df = comp_df.copy()
+                    pct_cols = ['总收益率', '基准收益', '胜率', '最大回撤']
+                    for col in pct_cols:
+                        if col in display_df.columns:
+                            display_df[col] = display_df[col] * 100
+
+                    st.dataframe(
+                        display_df,
+                        column_config={
+                            "总收益率": st.column_config.NumberColumn(format="%.2f%%"),
+                            "基准收益": st.column_config.NumberColumn(format="%.2f%%"),
+                            "胜率": st.column_config.NumberColumn(format="%.2f%%"),
+                            "最大回撤": st.column_config.NumberColumn(format="%.2f%%"),
+                            "夏普比率": st.column_config.NumberColumn(format="%.2f"),
+                        },
+                        use_container_width=True
+                    )
                     
                     # 2. 净值曲线对比图
                     fig_comp = go.Figure()

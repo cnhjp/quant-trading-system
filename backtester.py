@@ -318,9 +318,9 @@ class Backtester:
         
         # 基准 (买入并持有 SPY)
         # 在第一个 Open 买入，永远持有。
-        # 基准收益 = 市场收益 (Open 到 Open)
-        data['Benchmark_Return'] = data['Market_Return']
-        data['Benchmark_Equity'] = self.initial_capital * (1 + data['Benchmark_Return'].fillna(0)).cumprod()
+        # 使用收盘价计算净值 (Mark-to-Market)，与 DCA/Pyramid 策略保持一致
+        initial_open = data['Open'].iloc[0]
+        data['Benchmark_Equity'] = (data['Close'] / initial_open) * self.initial_capital
         
         return data
 
@@ -527,8 +527,10 @@ class Backtester:
                 "Max Drawdown": max_drawdown
             }
         else:
-            total_return = (results['Equity'].iloc[-2] / self.initial_capital) - 1 # iloc[-2] 因为最后一行 NextOpen 是 NaN
-            benchmark_return = (results['Benchmark_Equity'].iloc[-2] / self.initial_capital) - 1
+            # 标准策略
+            # 使用 iloc[-1] 获取最新值 (因为 Benchmark_Equity 现在是基于 Close 计算的，且 Equity 最后一行已 fillna)
+            total_return = (results['Equity'].iloc[-1] / self.initial_capital) - 1
+            benchmark_return = (results['Benchmark_Equity'].iloc[-1] / self.initial_capital) - 1
             
             # 胜率 (活跃且收益为正的天数)
             active_days = results[results['Position'] != 0]
