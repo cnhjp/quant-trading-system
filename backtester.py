@@ -520,11 +520,19 @@ class Backtester:
             drawdown = (results['Equity'] - rolling_max) / rolling_max
             max_drawdown = drawdown.min()
             
+            # 夏普比率
+            daily_returns = results['Equity'].pct_change().dropna()
+            if daily_returns.std() > 0:
+                sharpe_ratio = (daily_returns.mean() / daily_returns.std()) * np.sqrt(252)
+            else:
+                sharpe_ratio = 0
+            
             return {
                 "Total Return": total_return,
                 "Benchmark Return": benchmark_return,
                 "Win Rate": win_rate,
-                "Max Drawdown": max_drawdown
+                "Max Drawdown": max_drawdown,
+                "Sharpe Ratio": sharpe_ratio
             }
         else:
             # 标准策略
@@ -544,9 +552,17 @@ class Backtester:
             drawdown = (results['Equity'] - rolling_max) / rolling_max
             max_drawdown = drawdown.min()
             
+            # 夏普比率
+            daily_returns = results['Equity'].pct_change().dropna()
+            if daily_returns.std() > 0:
+                sharpe_ratio = (daily_returns.mean() / daily_returns.std()) * np.sqrt(252)
+            else:
+                sharpe_ratio = 0
+            
             return {
                 "Total Return": total_return,
                 "Benchmark Return": benchmark_return,
                 "Win Rate": win_rate,
-                "Max Drawdown": max_drawdown
+                "Max Drawdown": max_drawdown,
+                "Sharpe Ratio": sharpe_ratio
             }

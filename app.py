@@ -41,29 +41,24 @@ TICKER_MAP = {
     "516350.SS (易方达芯片ETF)": "516350.SS"
 }
 
-selected_ticker_label = st.sidebar.selectbox("选择标的", list(TICKER_MAP.keys()))
-custom_ticker = st.sidebar.text_input("或输入自定义标的 (例如 AAPL, NVDA)", "")
+ticker_source = st.sidebar.radio("标的来源", ["预设标的", "自定义标的"])
 
-if custom_ticker.strip():
-    ticker = custom_ticker.strip().upper()
-    use_cache = False
-    # 简单判断货币
-    if ticker.endswith(".HK"):
-        currency_symbol = "HK$"
-    elif ticker.endswith(".SS") or ticker.endswith(".SZ"):
-        currency_symbol = "¥"
-    else:
-        currency_symbol = "$"
-else:
+if ticker_source == "预设标的":
+    selected_ticker_label = st.sidebar.selectbox("选择标的", list(TICKER_MAP.keys()))
     ticker = TICKER_MAP[selected_ticker_label]
     use_cache = True
-    # 确定货币符号 (保持原有逻辑)
-    if ticker.endswith(".HK"):
-        currency_symbol = "HK$"
-    elif ticker.endswith(".SS") or ticker.endswith(".SZ"):
-        currency_symbol = "¥"
-    else:
-        currency_symbol = "$"
+else:
+    custom_ticker = st.sidebar.text_input("输入标的代码 (例如 AAPL)", value="AAPL")
+    ticker = custom_ticker.strip().upper() if custom_ticker.strip() else "SPY"
+    use_cache = False
+
+# 确定货币符号
+if ticker.endswith(".HK"):
+    currency_symbol = "HK$"
+elif ticker.endswith(".SS") or ticker.endswith(".SZ"):
+    currency_symbol = "¥"
+else:
+    currency_symbol = "$"
 
 initial_capital = st.sidebar.number_input("初始资金", value=10000, step=1000)
 
@@ -468,11 +463,12 @@ elif app_mode == "策略回测":
                         st.success(f"📅 **{action_date.strftime('%Y-%m-%d')} 操作建议:** {current_action}")
 
                         # 显示 DCA 结果
-                        col1, col2, col3, col4 = st.columns(4)
+                        col1, col2, col3, col4, col5 = st.columns(5)
                         col1.metric("总收益率", f"{metrics['Total Return']:.2%}")
                         col2.metric("总投入", f"{currency_symbol}{results['Total_Invested'].iloc[-1]:,.0f}")
                         col3.metric("最终净值", f"{currency_symbol}{results['Equity'].iloc[-1]:,.0f}")
                         col4.metric("最大回撤", f"{metrics['Max Drawdown']:.2%}")
+                        col5.metric("夏普比率", f"{metrics.get('Sharpe Ratio', 0):.2f}")
                         
                         tab1, tab2, tab3 = st.tabs(["回测结果", "交易分析", "历史数据"])
                         with tab1:
@@ -551,11 +547,12 @@ elif app_mode == "策略回测":
                         # 4. 显示结果
                         
                         # 指标行
-                        col1, col2, col3, col4 = st.columns(4)
+                        col1, col2, col3, col4, col5 = st.columns(5)
                         col1.metric("总收益率", f"{metrics['Total Return']:.2%}")
                         col2.metric("基准收益", f"{metrics['Benchmark Return']:.2%}")
                         col3.metric("胜率", f"{metrics['Win Rate']:.2%}")
                         col4.metric("最大回撤", f"{metrics['Max Drawdown']:.2%}")
+                        col5.metric("夏普比率", f"{metrics.get('Sharpe Ratio', 0):.2f}")
                         
                         # 标签页视图
                         tab1, tab2, tab3 = st.tabs(["回测结果", "交易分析", "历史数据"])
