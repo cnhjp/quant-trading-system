@@ -67,20 +67,20 @@ backtester = Backtester(initial_capital=initial_capital)
 
 # 定义原始数据列的配置和 Tooltip (全局复用)
 raw_data_column_config = {
-    "Open": st.column_config.NumberColumn("Open ⚠", help="开盘价: 交易日开始时的第一笔成交价格。"),
-    "High": st.column_config.NumberColumn("High ⚠", help="最高价: 交易日内的最高成交价格。"),
-    "Low": st.column_config.NumberColumn("Low ⚠", help="最低价: 交易日内的最低成交价格。"),
-    "Close": st.column_config.NumberColumn("Close ⚠", help="收盘价: 交易日结束时的最后一笔成交价格。"),
-    "Volume": st.column_config.NumberColumn("Volume ⚠", help="成交量: 交易日内的总成交股数或合约数。"),
-    "PDH": st.column_config.NumberColumn("PDH ⚠", help="昨日高点: 上一个交易日的最高价。"),
-    "PDL": st.column_config.NumberColumn("PDL ⚠", help="昨日低点: 上一个交易日的最低价。"),
-    "VWAP": st.column_config.NumberColumn("VWAP ⚠", help="成交量加权平均价: 按成交量加权的平均成交价格。"),
-    "MA200": st.column_config.NumberColumn("MA200 ⚠", help="200日均线: 过去200个交易日的收盘价平均值，长期趋势参考。"),
-    "RSI": st.column_config.NumberColumn("RSI ⚠", help="相对强弱指数: 衡量买卖力量对比(0-100)。"),
-    "TP": st.column_config.NumberColumn("TP ⚠", help="典型价格: (High + Low + Close) / 3。"),
-    "TPV": st.column_config.NumberColumn("TPV ⚠", help="典型价格成交量: TP * Volume。"),
-    "CumTPV": st.column_config.NumberColumn("CumTPV ⚠", help="累积 TPV。"),
-    "CumVol": st.column_config.NumberColumn("CumVol ⚠", help="累积成交量。"),
+    "Open": st.column_config.NumberColumn("Open 🛈", help="开盘价: 交易日开始时的第一笔成交价格。"),
+    "High": st.column_config.NumberColumn("High 🛈", help="最高价: 交易日内的最高成交价格。"),
+    "Low": st.column_config.NumberColumn("Low 🛈", help="最低价: 交易日内的最低成交价格。"),
+    "Close": st.column_config.NumberColumn("Close 🛈", help="收盘价: 交易日结束时的最后一笔成交价格。"),
+    "Volume": st.column_config.NumberColumn("Volume 🛈", help="成交量: 交易日内的总成交股数或合约数。"),
+    "PDH": st.column_config.NumberColumn("PDH 🛈", help="昨日高点: 上一个交易日的最高价。"),
+    "PDL": st.column_config.NumberColumn("PDL 🛈", help="昨日低点: 上一个交易日的最低价。"),
+    "VWAP": st.column_config.NumberColumn("VWAP 🛈", help="成交量加权平均价: 按成交量加权的平均成交价格。"),
+    "MA200": st.column_config.NumberColumn("MA200 🛈", help="200日均线: 过去200个交易日的收盘价平均值，长期趋势参考。"),
+    "RSI": st.column_config.NumberColumn("RSI 🛈", help="相对强弱指数: 衡量买卖力量对比(0-100)。"),
+    "TP": st.column_config.NumberColumn("TP 🛈", help="典型价格: (High + Low + Close) / 3。"),
+    "TPV": st.column_config.NumberColumn("TPV 🛈", help="典型价格成交量: TP * Volume。"),
+    "CumTPV": st.column_config.NumberColumn("CumTPV 🛈", help="累积 TPV。"),
+    "CumVol": st.column_config.NumberColumn("CumVol 🛈", help="累积成交量。"),
 }
 
 def load_strategy_doc(strategy_display_name):
@@ -431,11 +431,11 @@ elif app_mode == "策略回测":
                     st.dataframe(
                         display_df,
                         column_config={
-                            "总收益率": st.column_config.NumberColumn("总收益率 ⚠", format="%.2f%%", help="策略在回测期间的累积收益百分比。"),
-                            "基准收益": st.column_config.NumberColumn("基准收益 ⚠", format="%.2f%%", help="同期买入并持有标的（如 SPY）的收益率。"),
-                            "胜率": st.column_config.NumberColumn("胜率 ⚠", format="%.2f%%", help="盈利交易次数占总交易次数的比例。"),
-                            "最大回撤": st.column_config.NumberColumn("最大回撤 ⚠", format="%.2f%%", help="资金曲线从峰值回落的最大跌幅。"),
-                            "夏普比率": st.column_config.NumberColumn("夏普比率 ⚠", format="%.2f", help="衡量风险调整后的收益。数值越高越好。"),
+                            "总收益率": st.column_config.NumberColumn("总收益率 🛈", format="%.2f%%", help="策略在回测期间的累积收益百分比。"),
+                            "基准收益": st.column_config.NumberColumn("基准收益 🛈", format="%.2f%%", help="同期买入并持有标的（如 SPY）的收益率。"),
+                            "胜率": st.column_config.NumberColumn("胜率 🛈", format="%.2f%%", help="盈利交易次数占总交易次数的比例。"),
+                            "最大回撤": st.column_config.NumberColumn("最大回撤 🛈", format="%.2f%%", help="资金曲线从峰值回落的最大跌幅。"),
+                            "夏普比率": st.column_config.NumberColumn("夏普比率 🛈", format="%.2f", help="衡量风险调整后的收益。数值越高越好。"),
                         },
                         use_container_width=True
                     )
@@ -621,7 +621,7 @@ elif app_mode == "策略回测":
                             fig_candle.update_layout(title="价格行为与信号", xaxis_rangeslider_visible=False)
                             st.plotly_chart(fig_candle, use_container_width=True)
 
-                            with st.expander("⚠ 图表指标说明"):
+                            with st.expander("🛈 图表指标说明"):
                                 st.markdown("""
                                 - **PDH (Previous Day High):** 昨日最高价，常作为阻力位参考。
                                 - **PDL (Previous Day Low):** 昨日最低价，常作为支撑位参考。
