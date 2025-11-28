@@ -5,3 +5,4 @@ yfinance
 plotly
 schedule
 requests
+python-dotenv

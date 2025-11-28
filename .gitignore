@@ -9,6 +9,10 @@ venv/
 ENV/
 .venv
 
+# Environment Variables
+.env
+.env.local
+
 # Data cache
 # data/  <-- Commented out to allow data persistence for Streamlit Cloud
 # *.csv  <-- Commented out to allow data persistence for Streamlit Cloud

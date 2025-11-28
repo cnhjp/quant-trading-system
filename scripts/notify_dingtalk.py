@@ -3,6 +3,11 @@ import requests
 import pandas as pd
 import json
 from datetime import datetime
+from dotenv import load_dotenv
+
+# 加载 .env 文件中的环境变量
+load_dotenv()
+
 from config.settings import TICKER_MAP
 from core.data_loader import DataLoader
 from core.strategies import (
