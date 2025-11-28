@@ -6,3 +6,4 @@ plotly
 schedule
 requests
 python-dotenv
+extra-streamlit-components

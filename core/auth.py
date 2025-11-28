@@ -1,6 +1,8 @@
 import streamlit as st
 import os
+import datetime
 from dotenv import load_dotenv
+import extra_streamlit_components as stx
 
 # 加载环境变量
 load_dotenv()
@@ -8,8 +10,7 @@ load_dotenv()
 def check_password():
     """Returns `True` if the user had a correct password."""
     
-    # 获取配置的账号密码
-    # Streamlit Cloud uses st.secrets, local development uses .env
+    # 1. 获取配置的账号密码
     if "WEB_USER" in os.environ and "WEB_PASSWORD" in os.environ:
         correct_user = os.environ["WEB_USER"]
         correct_password = os.environ["WEB_PASSWORD"]
@@ -17,34 +18,39 @@ def check_password():
         correct_user = st.secrets["WEB_USER"]
         correct_password = st.secrets["WEB_PASSWORD"]
     else:
-        # 如果没有配置，默认不需要登录，或者报错
-        # 这里我们为了安全，如果没配置，默认不让进，提示配置
         st.error("未配置登录账号密码，请在环境变量或 secrets.toml 中设置 WEB_USER 和 WEB_PASSWORD。")
         return False
 
-    def password_entered():
-        """Checks whether a password entered by the user is correct."""
-        if st.session_state["username"] == correct_user and st.session_state["password"] == correct_password:
-            st.session_state["password_correct"] = True
-            # 清除敏感信息
-            del st.session_state["password"]
-            del st.session_state["username"]
-        else:
-            st.session_state["password_correct"] = False
+    # 2. 初始化 Cookie Manager
+    # key 参数用于避免组件重新初始化问题
+    cookie_manager = stx.CookieManager(key="auth_cookie_manager")
+    
+    # 3. 检查 Cookie (持久化登录)
+    # 注意：组件加载需要时间，首次运行时可能为 None
+    cookie_val = cookie_manager.get(cookie="is_logged_in")
+    
+    if cookie_val == "true":
+        return True
 
-    # 如果已经验证通过，直接返回 True
+    # 4. 检查 Session State (用于本次登录后的即时状态)
     if st.session_state.get("password_correct", False):
         return True
 
-    # 显示登录表单
+    # 5. 显示登录表单
     st.title("🔒 请登录")
     
-    st.text_input("用户名", key="username")
-    st.text_input("密码", type="password", key="password")
+    username = st.text_input("用户名")
+    password = st.text_input("密码", type="password")
     
     if st.button("登录"):
-        password_entered()
-        if st.session_state.get("password_correct", False):
+        if username == correct_user and password == correct_password:
+            st.session_state["password_correct"] = True
+            
+            # 设置 7 天有效期的 Cookie
+            expires = datetime.datetime.now() + datetime.timedelta(days=7)
+            cookie_manager.set("is_logged_in", "true", expires_at=expires)
+            
+            # 强制刷新以应用状态
             st.rerun()
         else:
             st.error("😕 用户名或密码错误")
