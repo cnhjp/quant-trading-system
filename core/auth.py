@@ -25,9 +25,14 @@ def check_password():
     # 2. 初始化 Cookie Manager
     # 使用固定 key 以保证组件稳定性
     cookie_manager = stx.CookieManager(key="auth_cookie_manager")
+    st.session_state["_auth_cookie_manager"] = cookie_manager
     
     # 3. 检查 Cookie (持久化登录)
-    cookie_val = cookie_manager.get("quant_auth_token")
+    # 如果刚点击了退出登录，强制忽略 Cookie
+    if st.session_state.get("logout_reset", False):
+        cookie_val = None
+    else:
+        cookie_val = cookie_manager.get("quant_auth_token")
     
     if cookie_val == "valid":
         return True
@@ -50,6 +55,10 @@ def check_password():
     if st.button("登录"):
         if username == correct_user and password == correct_password:
             st.session_state["password_correct"] = True
+            
+            # 登录成功，清除退出标志
+            if "logout_reset" in st.session_state:
+                del st.session_state["logout_reset"]
             
             # 设置 7 天有效期的 Cookie
             expires = datetime.datetime.now() + datetime.timedelta(days=7)
@@ -74,8 +83,14 @@ def logout():
         del st.session_state["password_correct"]
     
     # 清除 Cookie
-    cookie_manager = stx.CookieManager(key="auth_cookie_manager")
-    cookie_manager.delete("quant_auth_token")
+    cookie_manager = st.session_state.get("_auth_cookie_manager")
+    if cookie_manager:
+        # 双重保险：先设为空，再删除
+        cookie_manager.set("quant_auth_token", "", path="/")
+        cookie_manager.delete("quant_auth_token")
+    
+    # 设置标志位，防止页面刷新后立刻通过 Cookie 自动登录
+    st.session_state["logout_reset"] = True
     
     st.success("已退出登录")
     time.sleep(1)
