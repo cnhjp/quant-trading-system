@@ -1,6 +1,7 @@
 import streamlit as st
 import os
 import datetime
+import time
 from dotenv import load_dotenv
 import extra_streamlit_components as stx
 
@@ -22,14 +23,13 @@ def check_password():
         return False
 
     # 2. 初始化 Cookie Manager
-    # key 参数用于避免组件重新初始化问题
+    # 使用固定 key 以保证组件稳定性
     cookie_manager = stx.CookieManager(key="auth_cookie_manager")
     
     # 3. 检查 Cookie (持久化登录)
-    # 注意：组件加载需要时间，首次运行时可能为 None
-    cookie_val = cookie_manager.get(cookie="is_logged_in")
+    cookie_val = cookie_manager.get("quant_auth_token")
     
-    if cookie_val == "true":
+    if cookie_val == "valid":
         return True
 
     # 4. 检查 Session State (用于本次登录后的即时状态)
@@ -38,6 +38,11 @@ def check_password():
 
     # 5. 显示登录表单
     st.title("🔒 请登录")
+    
+    # 调试信息：帮助排查 Cookie 读取问题
+    # 如果显示 None，说明组件正在加载或 Cookie 不存在
+    # 如果显示 valid，说明 Cookie 存在但可能逻辑判断有误（理论上不会走到这）
+    # st.info(f"Debug: Cookie Status = {cookie_val}")
     
     username = st.text_input("用户名")
     password = st.text_input("密码", type="password")
@@ -48,7 +53,12 @@ def check_password():
             
             # 设置 7 天有效期的 Cookie
             expires = datetime.datetime.now() + datetime.timedelta(days=7)
-            cookie_manager.set("is_logged_in", "true", expires_at=expires)
+            
+            # 设置 Cookie (指定 path="/" 确保全局有效)
+            cookie_manager.set("quant_auth_token", "valid", expires_at=expires, path="/")
+            
+            st.success("登录成功！正在跳转...")
+            time.sleep(1) # 关键：给浏览器一点时间写入 Cookie
             
             # 强制刷新以应用状态
             st.rerun()
@@ -56,3 +66,17 @@ def check_password():
             st.error("😕 用户名或密码错误")
 
     return False
+
+def logout():
+    """Logs the user out."""
+    # 清除 Session State
+    if "password_correct" in st.session_state:
+        del st.session_state["password_correct"]
+    
+    # 清除 Cookie
+    cookie_manager = stx.CookieManager(key="auth_cookie_manager")
+    cookie_manager.delete("quant_auth_token")
+    
+    st.success("已退出登录")
+    time.sleep(1)
+    st.rerun()

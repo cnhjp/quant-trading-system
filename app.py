@@ -7,7 +7,7 @@ import os
 from core.data_loader import DataLoader
 from core.strategies import LiquidityGrabStrategy, TrendConfluenceStrategy, MeanReversionStrategy, DailyDCAStrategy, PyramidGridStrategy, MA200TrendStrategy, TurnOfTheMonthStrategy, VIXSwitchStrategy
 from core.backtester import Backtester
-from core.auth import check_password
+from core.auth import check_password, logout
 from config.settings import TICKER_MAP
 
 # 页面配置
@@ -17,23 +17,15 @@ st.set_page_config(page_title="量化交易回测系统", layout="wide")
 if not check_password():
     st.stop()
 
-# 初始化模块
-data_loader = DataLoader()
-# backtester moved to sidebar config
-
-strategies = {
-    "Liquidity Grab (SFP)": LiquidityGrabStrategy(),
-    "Trend Confluence": TrendConfluenceStrategy(),
-    "Mean Reversion (RSI)": MeanReversionStrategy(),
-    "Daily DCA": DailyDCAStrategy(),
-    "Pyramid Grid": PyramidGridStrategy(),
-    "MA200 Trend": MA200TrendStrategy(),
-    "Turn of the Month": TurnOfTheMonthStrategy(),
-    "VIX Switch": VIXSwitchStrategy()
-}
-
 # 侧边栏
 st.sidebar.title("配置面板")
+
+# 退出登录按钮 (放在侧边栏顶部)
+if st.sidebar.button("🚪 退出登录"):
+    logout()
+
+# 初始化模块
+data_loader = DataLoader()
 
 # 模式选择
 app_mode = st.sidebar.radio("功能模式", ["策略回测", "交易信号看板"])
