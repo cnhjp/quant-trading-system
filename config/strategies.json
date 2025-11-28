@@ -1,0 +1,60 @@
+{
+  "strategies": [
+    {
+      "name": "Liquidity Grab (SFP)",
+      "display_name": "流动性掠夺策略",
+      "module": "core.strategies.liquidity_grab",
+      "class_name": "LiquidityGrabStrategy",
+      "enabled": true
+    },
+    {
+      "name": "Trend Confluence",
+      "display_name": "趋势共振策略",
+      "module": "core.strategies.trend_confluence",
+      "class_name": "TrendConfluenceStrategy",
+      "enabled": true
+    },
+    {
+      "name": "Mean Reversion (RSI)",
+      "display_name": "均值回归策略",
+      "module": "core.strategies.mean_reversion",
+      "class_name": "MeanReversionStrategy",
+      "enabled": true
+    },
+    {
+      "name": "Daily DCA",
+      "display_name": "每日定投策略",
+      "module": "core.strategies.daily_dca",
+      "class_name": "DailyDCAStrategy",
+      "enabled": true
+    },
+    {
+      "name": "Pyramid Grid",
+      "display_name": "金字塔网格策略",
+      "module": "core.strategies.pyramid_grid",
+      "class_name": "PyramidGridStrategy",
+      "enabled": true
+    },
+    {
+      "name": "MA200 Trend",
+      "display_name": "均线趋势策略",
+      "module": "core.strategies.ma200_trend",
+      "class_name": "MA200TrendStrategy",
+      "enabled": true
+    },
+    {
+      "name": "Turn of the Month",
+      "display_name": "月底效应策略",
+      "module": "core.strategies.turn_of_month",
+      "class_name": "TurnOfTheMonthStrategy",
+      "enabled": true
+    },
+    {
+      "name": "VIX Switch",
+      "display_name": "波动率控制策略",
+      "module": "core.strategies.vix_switch",
+      "class_name": "VIXSwitchStrategy",
+      "enabled": true
+    }
+  ]
+}

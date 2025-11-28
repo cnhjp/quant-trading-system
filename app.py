@@ -5,10 +5,10 @@ from plotly.subplots import make_subplots
 import os
 
 from core.data_loader import DataLoader
-from core.strategies import LiquidityGrabStrategy, TrendConfluenceStrategy, MeanReversionStrategy, DailyDCAStrategy, PyramidGridStrategy, MA200TrendStrategy, TurnOfTheMonthStrategy, VIXSwitchStrategy
+from core.strategy_loader import load_strategies
 from core.backtester import Backtester
 from core.auth import check_password, logout
-from config.settings import TICKER_MAP
+from config.ticker_loader import load_tickers
 
 # 页面配置
 st.set_page_config(page_title="量化交易回测系统", layout="wide")
@@ -27,22 +27,14 @@ if st.sidebar.button("🚪 退出登录"):
 # 初始化模块
 data_loader = DataLoader()
 
-strategies = {
-    "Liquidity Grab (SFP)": LiquidityGrabStrategy(),
-    "Trend Confluence": TrendConfluenceStrategy(),
-    "Mean Reversion (RSI)": MeanReversionStrategy(),
-    "Daily DCA": DailyDCAStrategy(),
-    "Pyramid Grid": PyramidGridStrategy(),
-    "MA200 Trend": MA200TrendStrategy(),
-    "Turn of the Month": TurnOfTheMonthStrategy(),
-    "VIX Switch": VIXSwitchStrategy()
-}
+# 动态加载策略（从配置文件）
+strategies, strategy_display_names = load_strategies()
+
+# 动态加载标的（从配置文件）
+TICKER_MAP = load_tickers()
 
 # 模式选择
 app_mode = st.sidebar.radio("功能模式", ["策略回测", "交易信号看板"])
-
-# 标的映射
-# TICKER_MAP imported from config.py
 
 ticker_source = st.sidebar.radio("标的来源", ["预设标的", "自定义标的"])
 
@@ -179,17 +171,6 @@ def get_strategy_action(strategy_name, signals):
             
     return "未知", last_date
 
-# 策略名称映射
-strategy_display_names = {
-    "Liquidity Grab (SFP)": "流动性掠夺策略",
-    "Trend Confluence": "趋势共振策略",
-    "Mean Reversion (RSI)": "均值回归策略",
-    "Daily DCA": "每日定投策略",
-    "Pyramid Grid": "金字塔网格策略",
-    "MA200 Trend": "均线趋势策略",
-    "Turn of the Month": "月底效应策略",
-    "VIX Switch": "波动率控制策略"
-}
 # 反向映射以获取策略字典的键
 display_to_key = {v: k for k, v in strategy_display_names.items()}
 
@@ -295,8 +276,17 @@ elif app_mode == "策略回测":
     selected_comparison_strategies = []
 
     if not compare_mode:
-        # 默认选择每日定投 (index 3)
-        selected_strategy_display = st.sidebar.selectbox("选择策略", list(strategy_display_names.values()), index=3)
+        # 计算安全的默认索引（默认选择每日定投，如果不存在则选择第一个）
+        display_names_list = list(strategy_display_names.values())
+        default_strategy = "每日定投策略"  # 优先选择每日定投
+        
+        if default_strategy in display_names_list:
+            default_index = display_names_list.index(default_strategy)
+        else:
+            # 如果每日定投被禁用，选择第一个可用策略
+            default_index = 0 if len(display_names_list) > 0 else 0
+        
+        selected_strategy_display = st.sidebar.selectbox("选择策略", display_names_list, index=default_index)
         strategy_name = display_to_key[selected_strategy_display]
     else:
         strategy_name = None # In compare mode, we ignore single strategy selection
