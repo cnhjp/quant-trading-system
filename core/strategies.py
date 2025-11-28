@@ -83,7 +83,7 @@ class TrendConfluenceStrategy(BaseStrategy):
         
         # 2. VIX 过滤
         if vix_df is not None:
-            vix_aligned = vix_df['Close'].reindex(df.index).fillna(method='ffill')
+            vix_aligned = vix_df['Close'].reindex(df.index).ffill()
             vix_ma20 = vix_aligned.rolling(window=20).mean()
             vix_cond = vix_aligned < vix_ma20
         else:
@@ -210,6 +210,7 @@ class PyramidGridStrategy(BaseStrategy):
         signals['BuyLevel'] = -1     # 买入层级 (-1表示无买入)
         signals['BuyAmount'] = 0.0   # 买入金额比例
         signals['SellRatio'] = 0.0   # 卖出比例 (针对最近一笔)
+        signals['CurrentLevel'] = 0  # 当前层级 (追踪状态)
         
         # 计算 RSI (用于 Level 1 过滤)
         delta = df['Close'].diff()
@@ -222,7 +223,7 @@ class PyramidGridStrategy(BaseStrategy):
         avg_cost = None          # 持仓均价
         last_buy_price = None    # 最近一次买入价
         last_buy_level = -1      # 最近一次买入层级
-        current_level = -1       # 当前已达到的最高层级
+        current_level = 0        # 当前已达到的最高层级 (初始为0)
         
         # 新增: 记录每一层的买入价格
         buy_prices = {}          # {level: price}
@@ -242,6 +243,7 @@ class PyramidGridStrategy(BaseStrategy):
                 current_level = 0
                 
                 buy_prices[0] = current_price # 记录 Level 0 价格
+                signals.iloc[i, signals.columns.get_loc('CurrentLevel')] = current_level
                 continue
             
             # 检查止盈条件 (上涨5%)
@@ -265,12 +267,14 @@ class PyramidGridStrategy(BaseStrategy):
                     # 如果买入信息丢失(防御性编程), 重置
                     if last_buy_price is None:
                         last_buy_price = avg_cost # 回退到均价作为近似
-                        
+                    
+                    signals.iloc[i, signals.columns.get_loc('CurrentLevel')] = current_level
                     continue
             
             # 检查加仓条件 (相对持仓均价下跌)
             if avg_cost is not None:
                 # 遍历网格层级 (从Level 1开始，跳过Level 0)
+                triggered = False
                 for level_config in self.grid_levels[1:]:
                     level = level_config['level']
                     
@@ -305,7 +309,15 @@ class PyramidGridStrategy(BaseStrategy):
                         current_level = level
                         
                         buy_prices[level] = current_price # 记录该层价格
+                        triggered = True
                         break  # 一天只买入一个层级
+                
+                if not triggered:
+                    # 保持当前状态
+                    pass
+            
+            # 记录当天的 Level
+            signals.iloc[i, signals.columns.get_loc('CurrentLevel')] = current_level
         
         return signals
 
@@ -383,7 +395,7 @@ class VIXSwitchStrategy(BaseStrategy):
             if not isinstance(vix_df.index, pd.DatetimeIndex):
                 vix_df.index = pd.to_datetime(vix_df.index)
             
-            vix_aligned = vix_df['Close'].reindex(df.index).fillna(method='ffill')
+            vix_aligned = vix_df['Close'].reindex(df.index).ffill()
             
             # 计算 VIX MA50
             vix_ma50 = vix_aligned.rolling(window=50).mean()
