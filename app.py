@@ -7,10 +7,15 @@ import os
 from core.data_loader import DataLoader
 from core.strategies import LiquidityGrabStrategy, TrendConfluenceStrategy, MeanReversionStrategy, DailyDCAStrategy, PyramidGridStrategy, MA200TrendStrategy, TurnOfTheMonthStrategy, VIXSwitchStrategy
 from core.backtester import Backtester
+from core.auth import check_password
 from config.settings import TICKER_MAP
 
 # 页面配置
 st.set_page_config(page_title="量化交易回测系统", layout="wide")
+
+# 登录校验
+if not check_password():
+    st.stop()
 
 # 初始化模块
 data_loader = DataLoader()
