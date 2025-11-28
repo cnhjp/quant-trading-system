@@ -27,6 +27,17 @@ if st.sidebar.button("🚪 退出登录"):
 # 初始化模块
 data_loader = DataLoader()
 
+strategies = {
+    "Liquidity Grab (SFP)": LiquidityGrabStrategy(),
+    "Trend Confluence": TrendConfluenceStrategy(),
+    "Mean Reversion (RSI)": MeanReversionStrategy(),
+    "Daily DCA": DailyDCAStrategy(),
+    "Pyramid Grid": PyramidGridStrategy(),
+    "MA200 Trend": MA200TrendStrategy(),
+    "Turn of the Month": TurnOfTheMonthStrategy(),
+    "VIX Switch": VIXSwitchStrategy()
+}
+
 # 模式选择
 app_mode = st.sidebar.radio("功能模式", ["策略回测", "交易信号看板"])
 
