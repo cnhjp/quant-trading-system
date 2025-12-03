@@ -166,3 +166,23 @@ class PyramidGridStrategy(BaseStrategy):
             signals.iloc[i, signals.columns.get_loc('CurrentLevel')] = current_level
         
         return signals
+
+    def get_action_info(self, current_row, prev_row=None, market_row=None):
+        today_sig = current_row['Signal']
+        
+        action = "持仓"
+        reason = "价格在网格区间内波动"
+        
+        if today_sig == 1:
+            level = current_row.get('BuyLevel', -1)
+            amt = current_row.get('BuyAmount', 0)
+            action = f"买入 (L{level}, {amt:.0%})"
+            reason = f"价格触及网格买入线 (L{level})"
+            if market_row is not None and 'RSI' in market_row:
+                 if level == 1: reason += f", RSI={market_row['RSI']:.1f}"
+        elif today_sig == -1:
+            ratio = current_row.get('SellRatio', 0)
+            action = f"卖出 ({ratio:.0%})"
+            reason = "价格触及网格止盈线"
+            
+        return action, reason

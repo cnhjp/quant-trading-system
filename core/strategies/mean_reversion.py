@@ -41,3 +41,23 @@ class MeanReversionStrategy(BaseStrategy):
         signals['Signal'] = signals['Signal'].ffill().fillna(0)
         
         return signals
+
+    def get_action_info(self, current_row, prev_row=None, market_row=None):
+        today_sig = current_row['Signal']
+        prev_sig = prev_row['Signal'] if prev_row is not None else 0
+        
+        if today_sig == 1:
+            action = "持仓" if prev_sig == 1 else "买入"
+            if prev_sig == 0 and market_row is not None:
+                rsi = market_row.get('RSI', 0)
+                reason = f"RSI ({rsi:.1f}) < 45 且价格 > MA200 (超卖反弹)"
+            else:
+                reason = "持续持有均值回归仓位"
+        else:
+            action = "空仓" if prev_sig == 0 else "卖出"
+            if prev_sig == 1:
+                reason = "RSI > 70 或价格跌破MA200"
+            else:
+                reason = "无信号"
+            
+        return action, reason

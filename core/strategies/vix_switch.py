@@ -28,5 +28,24 @@ class VIXSwitchStrategy(BaseStrategy):
             # VIX < MA50 -> 买入/持有 (Signal 1)
             buy_cond = vix_aligned < vix_ma50
             signals.loc[buy_cond, 'Signal'] = 1
+            
+            # 保存指标用于前端显示原因
+            signals['VIX'] = vix_aligned
+            signals['VIX_MA50'] = vix_ma50
         
         return signals
+
+    def get_action_info(self, current_row, prev_row=None, market_row=None):
+        today_sig = current_row['Signal']
+        prev_sig = prev_row['Signal'] if prev_row is not None else 0
+        vix = current_row.get('VIX', 0)
+        ma50 = current_row.get('VIX_MA50', 0)
+        
+        if today_sig == 1:
+            action = "持仓" if prev_sig == 1 else "买入"
+            reason = f"VIX ({vix:.2f}) < MA50 ({ma50:.2f})"
+        else:
+            action = "空仓"
+            reason = f"VIX ({vix:.2f}) > MA50 ({ma50:.2f})"
+            
+        return action, reason

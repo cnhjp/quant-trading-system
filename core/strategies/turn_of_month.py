@@ -34,3 +34,22 @@ class TurnOfTheMonthStrategy(BaseStrategy):
                 signals.loc[first_3, 'Signal'] = 1
                 
         return signals
+
+    def get_action_info(self, current_row, prev_row=None, market_row=None):
+        today_sig = current_row['Signal']
+        prev_sig = prev_row['Signal'] if prev_row is not None else 0
+        
+        if today_sig == 1:
+            action = "持仓" if prev_sig == 1 else "买入"
+            if prev_sig == 0:
+                reason = "月底/月初窗口期 (月底4天或月初3天)"
+            else:
+                reason = "持续持有月度窗口期仓位"
+        else:
+            action = "空仓" if prev_sig == 0 else "卖出"
+            if prev_sig == 1:
+                reason = "离开月底/月初窗口期"
+            else:
+                reason = "非窗口期"
+            
+        return action, reason

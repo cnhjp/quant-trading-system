@@ -50,3 +50,22 @@ class TrendConfluenceStrategy(BaseStrategy):
         signals['Signal'] = signals['Signal'].ffill().fillna(0)
         
         return signals
+
+    def get_action_info(self, current_row, prev_row=None, market_row=None):
+        today_sig = current_row['Signal']
+        prev_sig = prev_row['Signal'] if prev_row is not None else 0
+        
+        if today_sig == 1:
+            action = "持仓" if prev_sig == 1 else "买入"
+            if prev_sig == 0:
+                reason = "价格 > VWAP 且 VIX < MA20 (趋势共振)"
+            else:
+                reason = "持续持有趋势共振仓位"
+        else:
+            action = "空仓" if prev_sig == 0 else "卖出"
+            if prev_sig == 1:
+                reason = "价格跌破VWAP"
+            else:
+                reason = "无信号"
+            
+        return action, reason

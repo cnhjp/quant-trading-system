@@ -21,4 +21,22 @@ class MA200TrendStrategy(BaseStrategy):
         buy_cond = df['Close'] > df['MA200']
         signals.loc[buy_cond, 'Signal'] = 1
         
+        # 保存指标用于前端显示原因
+        signals['MA200'] = df['MA200']
+        
         return signals
+
+    def get_action_info(self, current_row, prev_row=None, market_row=None):
+        today_sig = current_row['Signal']
+        prev_sig = prev_row['Signal'] if prev_row is not None else 0
+        ma200 = current_row.get('MA200', 0)
+        close = market_row['Close'] if market_row is not None else 0
+        
+        if today_sig == 1:
+            action = "持仓" if prev_sig == 1 else "买入"
+            reason = f"收盘价 ({close:.2f}) > MA200 ({ma200:.2f})"
+        else:
+            action = "空仓" if prev_sig == 0 else "卖出"
+            reason = f"收盘价 ({close:.2f}) < MA200 ({ma200:.2f})"
+            
+        return action, reason

@@ -89,87 +89,20 @@ def load_strategy_doc(strategy_display_name):
         return f"无法加载文档: {e}"
     return None
 
-def get_action_description(strategy_name, current_row, prev_row=None):
-    """
-    根据单行数据（以及前一行数据）解析操作描述。
-    用于批量处理历史数据。
-    """
-    today_sig = current_row['Signal']
-    if prev_row is not None:
-        prev_sig = prev_row['Signal']
-    else:
-        prev_sig = 0 # 默认前一天空仓
-
-    if strategy_name == "Daily DCA":
-        return "买入 (定投)"
-        
-    elif strategy_name == "Pyramid Grid":
-        if today_sig == 1:
-            level = current_row.get('BuyLevel', -1)
-            amt = current_row.get('BuyAmount', 0)
-            return f"买入 (L{level}, {amt:.0%})"
-        elif today_sig == -1:
-            ratio = current_row.get('SellRatio', 0)
-            return f"卖出 ({ratio:.0%})"
-        else:
-            # Grid 策略持有是常态，不一定每次都输出
-            # 为了历史表格整洁，这里可以显示 "持仓" 或 空
-            # 如果上一时刻持有底仓以上，则是持仓
-            return "持仓" # 简化显示
-            
-    else:
-        # Standard 0/1
-        if today_sig == 1 and prev_sig == 0:
-            return "买入 (100% 全仓)"
-        elif today_sig == 1 and prev_sig == 1:
-            return "持仓 (100%)"
-        elif today_sig == 0 and prev_sig == 1:
-            return "卖出 (100% 清仓)"
-        elif today_sig == 0 and prev_sig == 0:
-            return "空仓 (0%)"
-            
-    return "?"
-
-def get_strategy_action(strategy_name, signals):
-    """获取策略在最新日期的操作建议 (原有函数保留用于回测模式)"""
+def get_strategy_action(strategy, signals, df=None):
+    """获取策略在最新日期的操作建议和原因"""
     if signals.empty:
-        return "无数据", None
+        return "无数据", "无数据", None
     
     last_date = signals.index[-1]
-    today_sig = signals['Signal'].iloc[-1]
+    current_row = signals.iloc[-1]
+    prev_row = signals.iloc[-2] if len(signals) > 1 else None
+    market_row = df.iloc[-1] if df is not None and not df.empty else None
     
-    # Check if we have previous data
-    if len(signals) > 1:
-        prev_sig = signals['Signal'].iloc[-2]
-    else:
-        prev_sig = 0
-        
-    if strategy_name == "Daily DCA":
-        return "买入 (定投)", last_date
-        
-    elif strategy_name == "Pyramid Grid":
-        if today_sig == 1:
-            level = signals['BuyLevel'].iloc[-1]
-            amt = signals['BuyAmount'].iloc[-1]
-            return f"买入 (层级 {level}, 仓位 {amt:.0%})", last_date
-        elif today_sig == -1:
-            ratio = signals['SellRatio'].iloc[-1]
-            return f"卖出 (比例 {ratio:.0%})", last_date
-        else:
-            return "无交易 (持仓/观望)", last_date
-            
-    else:
-        # Standard 0/1 State Strategies
-        if today_sig == 1 and prev_sig == 0:
-            return "买入 (100% 全仓)", last_date
-        elif today_sig == 1 and prev_sig == 1:
-            return "持仓 (100%)", last_date
-        elif today_sig == 0 and prev_sig == 1:
-            return "卖出 (100% 清仓)", last_date
-        elif today_sig == 0 and prev_sig == 0:
-            return "空仓 / 观望", last_date
-            
-    return "未知", last_date
+    # 调用策略对象的 get_action_info 方法
+    action, reason = strategy.get_action_info(current_row, prev_row, market_row)
+    
+    return action, reason, last_date
 
 # 反向映射以获取策略字典的键
 display_to_key = {v: k for k, v in strategy_display_names.items()}
@@ -188,86 +121,273 @@ if app_mode == "交易信号看板":
         else:
             # 2. 计算所有策略的信号
             all_actions = pd.DataFrame(index=df.index)
+            all_signals_numeric = pd.DataFrame(index=df.index)  # 数值信号用于绘图
+            today_overview = []
             
             # 遍历策略生成信号
             for s_name, strategy in strategies.items():
                 disp_name = strategy_display_names[s_name]
                 
-                if s_name == "Daily DCA":
-                    # DCA 简单处理
-                    all_actions[disp_name] = "🟢 买入 (定投)"
-                else:
-                    try:
-                        if s_name == "Pyramid Grid":
-                            sigs = strategy.generate_signals(df)
-                        else:
-                            sigs = strategy.generate_signals(df, vix_df=vix_df)
+                try:
+                    if s_name == "Pyramid Grid":
+                        sigs = strategy.generate_signals(df)
+                    else:
+                        sigs = strategy.generate_signals(df, vix_df=vix_df)
+                    
+                    # 收集今日建议
+                    if not sigs.empty:
+                        t_act, t_reason = strategy.get_action_info(sigs.iloc[-1], sigs.iloc[-2] if len(sigs)>1 else None, df.iloc[-1])
+                        # Add emoji
+                        if "买入" in t_act: t_act = "🟢 " + t_act
+                        elif "卖出" in t_act: t_act = "🔴 " + t_act
+                        elif "持仓" in t_act: t_act = "🔵 " + t_act
                         
-                        # 转换信号为文字描述
-                        # 为了效率，我们可以使用 apply，或者简单的循环
-                        # 由于要用到 prev_row，这里简单遍历一遍或者使用 vectorized logic
+                        today_overview.append({
+                            "策略": disp_name,
+                            "操作建议": t_act,
+                            "原因": t_reason
+                        })
+
+                    # 转换信号为文字描述和数值 (历史数据)
+                    if s_name == "Daily DCA":
+                         all_actions[disp_name] = "🟢 买入 (定投)"
+                         all_signals_numeric[disp_name] = 1  # 定投始终为买入信号
+                    elif s_name not in ["Pyramid Grid"]:
+                        actions = []
+                        numeric_signals = []
+                        sig_series = sigs['Signal']
+                        prev_sig_series = sig_series.shift(1).fillna(0)
                         
-                        # 向量化处理 (Standard)
-                        if s_name not in ["Pyramid Grid"]:
-                            actions = []
-                            sig_series = sigs['Signal']
-                            prev_sig_series = sig_series.shift(1).fillna(0)
+                        # 向量化处理 (Standard) - 这里为了简单还是用了循环，但可以优化
+                        # 为了保持一致性，这里只显示 Action，不显示 Reason 以免表格太宽
+                        for i in range(len(sig_series)):
+                            curr = sig_series.iloc[i]
+                            prev = prev_sig_series.iloc[i]
                             
-                            for i in range(len(sig_series)):
-                                curr = sig_series.iloc[i]
-                                prev = prev_sig_series.iloc[i]
-                                
-                                if curr == 1 and prev == 0: actions.append("🟢 买入 (100% 全仓)")
-                                elif curr == 1 and prev == 1: actions.append("🔵 持仓 (100%)")
-                                elif curr == 0 and prev == 1: actions.append("🔴 卖出 (100% 清仓)")
-                                else: actions.append("⚪ 空仓")
-                            
-                            all_actions[disp_name] = actions
-                            
-                        else:
-                            # Pyramid Grid 复杂逻辑，逐行处理比较稳妥 (虽然慢一点，但数据量不大)
-                            actions = []
-                            for i in range(len(sigs)):
-                                act = get_action_description(s_name, sigs.iloc[i], sigs.iloc[i-1] if i > 0 else None)
-                                # 添加 emoji
-                                if "买入" in act: act = "🟢 " + act
-                                elif "卖出" in act: act = "🔴 " + act
-                                elif "持仓" in act: act = "🔵 " + act
-                                actions.append(act)
-                            all_actions[disp_name] = actions
-                            
-                    except Exception as e:
-                        all_actions[disp_name] = "Error"
-                        print(f"Error processing {s_name}: {e}")
+                            if curr == 1 and prev == 0: 
+                                actions.append("🟢 买入 (100% 全仓)")
+                                numeric_signals.append(1)
+                            elif curr == 1 and prev == 1: 
+                                actions.append("🔵 持仓 (100%)")
+                                numeric_signals.append(0.5)
+                            elif curr == 0 and prev == 1: 
+                                actions.append("🔴 卖出 (100% 清仓)")
+                                numeric_signals.append(-1)
+                            else: 
+                                actions.append("⚪ 空仓")
+                                numeric_signals.append(0)
+                        
+                        all_actions[disp_name] = actions
+                        all_signals_numeric[disp_name] = numeric_signals
+                        
+                    else:
+                        # Pyramid Grid
+                        actions = []
+                        numeric_signals = []
+                        for i in range(len(sigs)):
+                            # 历史列表暂不显示详细原因，只显示操作
+                            act, _ = strategy.get_action_info(sigs.iloc[i], sigs.iloc[i-1] if i > 0 else None, df.iloc[i])
+                            # 添加 emoji 和数值信号
+                            if "买入" in act: 
+                                act = "🟢 " + act
+                                numeric_signals.append(1)
+                            elif "卖出" in act: 
+                                act = "🔴 " + act
+                                numeric_signals.append(-1)
+                            elif "持仓" in act: 
+                                act = "🔵 " + act
+                                numeric_signals.append(0.5)
+                            else:
+                                numeric_signals.append(0)
+                            actions.append(act)
+                        all_actions[disp_name] = actions
+                        all_signals_numeric[disp_name] = numeric_signals
+                        
+                except Exception as e:
+                    all_actions[disp_name] = "Error"
+                    all_signals_numeric[disp_name] = 0
+                    print(f"Error processing {s_name}: {e}")
 
             # 3. 展示今日概览
             st.subheader("📅 今日操作建议")
             last_date = df.index[-1]
             st.info(f"数据日期: **{last_date.strftime('%Y-%m-%d')}**")
             
-            # 取最后一行并转置
-            today_actions = all_actions.iloc[[-1]].T
-            today_actions.columns = ["操作建议"]
-            
-            # 样式优化
-            def color_action(val):
-                color = ''
-                if '买入' in val: color = 'background-color: #d4edda; color: #155724' # Green
-                elif '卖出' in val: color = 'background-color: #f8d7da; color: #721c24' # Red
-                elif '持仓' in val: color = 'background-color: #cce5ff; color: #004085' # Blue
-                return color
+            if today_overview:
+                today_df = pd.DataFrame(today_overview).set_index("策略")
+                
+                # 样式优化
+                def color_action(val):
+                    color = ''
+                    if '买入' in val: color = 'background-color: #d4edda; color: #155724' # Green
+                    elif '卖出' in val: color = 'background-color: #f8d7da; color: #721c24' # Red
+                    elif '持仓' in val: color = 'background-color: #cce5ff; color: #004085' # Blue
+                    return color
 
-            st.table(today_actions.style.applymap(color_action))
+                st.table(today_df.style.applymap(color_action, subset=["操作建议"]))
+            else:
+                st.write("无数据")
             
-            # 4. 历史信号全览
-            st.subheader("📜 历史信号总览")
+            # 4. 历史数据可视化 (新增)
+            st.subheader("📊 历史信号图表分析")
             
-            # 倒序排列
-            history_df = all_actions.sort_index(ascending=False)
+            # 时间范围选择
+            days_to_show = st.slider("图表显示天数", 10, 365, 90, key="chart_days")
             
-            # 显示最近 N 天
-            days_to_show = st.slider("显示最近天数", 10, 365, 30)
-            st.dataframe(history_df.head(days_to_show).style.applymap(color_action), height=600)
+            # 获取最近N天的数据
+            recent_signals = all_signals_numeric.tail(days_to_show)
+            recent_price = df['Close'].tail(days_to_show)
+            
+            # 创建标签页
+            chart_tab1, chart_tab2, chart_tab3, chart_tab4 = st.tabs(["📈 价格与信号", "📊 策略一致性", "🔥 信号热力图", "📜 历史记录表"])
+            
+            with chart_tab1:
+                st.markdown("**价格走势与策略信号叠加图**")
+                st.caption("展示价格变化与各策略信号的时间对应关系")
+                
+                # 创建双 Y 轴图表
+                fig_signals = make_subplots(
+                    rows=2, cols=1, 
+                    shared_xaxes=True,
+                    vertical_spacing=0.05,
+                    row_heights=[0.6, 0.4],
+                    subplot_titles=(f'{ticker} 价格走势', '策略信号强度')
+                )
+                
+                # 第一行：价格走势
+                fig_signals.add_trace(
+                    go.Scatter(x=recent_price.index, y=recent_price, 
+                              mode='lines', name='收盘价',
+                              line=dict(color='#1f77b4', width=2)),
+                    row=1, col=1
+                )
+                
+                # 第二行：各策略信号
+                colors = ['#2ecc71', '#e74c3c', '#f39c12', '#9b59b6', '#3498db', '#1abc9c', '#e67e22']
+                for idx, col_name in enumerate(recent_signals.columns):
+                    fig_signals.add_trace(
+                        go.Scatter(x=recent_signals.index, y=recent_signals[col_name],
+                                  mode='lines+markers', name=col_name,
+                                  line=dict(color=colors[idx % len(colors)], width=1.5),
+                                  marker=dict(size=4)),
+                        row=2, col=1
+                    )
+                
+                # 在信号图上添加参考线
+                fig_signals.add_hline(y=0, line_dash="dash", line_color="gray", 
+                                     annotation_text="中性", row=2, col=1)
+                
+                fig_signals.update_xaxes(title_text="日期", row=2, col=1)
+                fig_signals.update_yaxes(title_text=f"价格 ({currency_symbol})", row=1, col=1)
+                fig_signals.update_yaxes(title_text="信号强度", row=2, col=1, 
+                                        tickvals=[-1, -0.5, 0, 0.5, 1],
+                                        ticktext=['卖出', '减仓', '中性', '持仓', '买入'])
+                
+                fig_signals.update_layout(height=700, hovermode='x unified',
+                                         legend=dict(orientation="h", yanchor="bottom", y=-0.15, xanchor="center", x=0.5))
+                
+                st.plotly_chart(fig_signals, use_container_width=True)
+            
+            with chart_tab2:
+                st.markdown("**策略一致性分析 - 每日信号分布**")
+                st.caption("统计每日有多少策略发出买入/持仓/卖出信号，评估市场共识度")
+                
+                # 计算每日的买入、持仓、卖出信号数量
+                daily_consensus = pd.DataFrame(index=recent_signals.index)
+                daily_consensus['买入信号数'] = (recent_signals == 1).sum(axis=1)
+                daily_consensus['持仓信号数'] = (recent_signals == 0.5).sum(axis=1)
+                daily_consensus['卖出信号数'] = (recent_signals == -1).sum(axis=1)
+                daily_consensus['空仓信号数'] = (recent_signals == 0).sum(axis=1)
+                
+                fig_consensus = go.Figure()
+                
+                fig_consensus.add_trace(go.Bar(
+                    x=daily_consensus.index, y=daily_consensus['买入信号数'],
+                    name='买入', marker_color='#2ecc71'
+                ))
+                fig_consensus.add_trace(go.Bar(
+                    x=daily_consensus.index, y=daily_consensus['持仓信号数'],
+                    name='持仓', marker_color='#3498db'
+                ))
+                fig_consensus.add_trace(go.Bar(
+                    x=daily_consensus.index, y=daily_consensus['卖出信号数'],
+                    name='卖出', marker_color='#e74c3c'
+                ))
+                fig_consensus.add_trace(go.Bar(
+                    x=daily_consensus.index, y=daily_consensus['空仓信号数'],
+                    name='空仓', marker_color='#95a5a6'
+                ))
+                
+                fig_consensus.update_layout(
+                    barmode='stack',
+                    title='每日策略信号分布',
+                    xaxis_title='日期',
+                    yaxis_title='策略数量',
+                    height=500,
+                    hovermode='x unified',
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                )
+                
+                st.plotly_chart(fig_consensus, use_container_width=True)
+                
+                # 添加统计信息
+                col_stat1, col_stat2, col_stat3, col_stat4 = st.columns(4)
+                with col_stat1:
+                    st.metric("平均买入信号数", f"{daily_consensus['买入信号数'].mean():.1f}")
+                with col_stat2:
+                    st.metric("平均持仓信号数", f"{daily_consensus['持仓信号数'].mean():.1f}")
+                with col_stat3:
+                    st.metric("平均卖出信号数", f"{daily_consensus['卖出信号数'].mean():.1f}")
+                with col_stat4:
+                    st.metric("平均空仓信号数", f"{daily_consensus['空仓信号数'].mean():.1f}")
+            
+            with chart_tab3:
+                st.markdown("**信号强度热力图**")
+                st.caption("颜色深浅表示信号强度: 绿色=买入, 蓝色=持仓, 红色=卖出, 灰色=空仓")
+                
+                # 创建热力图
+                # 为了更好的可视化，我们将数值映射为颜色
+                fig_heatmap = go.Figure(data=go.Heatmap(
+                    z=recent_signals.T.values,
+                    x=recent_signals.index,
+                    y=recent_signals.columns,
+                    colorscale=[
+                        [0, '#e74c3c'],      # -1: 红色 (卖出)
+                        [0.25, '#95a5a6'],   # 0: 灰色 (空仓)
+                        [0.5, '#95a5a6'],    # 0: 灰色 (空仓)
+                        [0.75, '#3498db'],   # 0.5: 蓝色 (持仓)
+                        [1, '#2ecc71']       # 1: 绿色 (买入)
+                    ],
+                    zmid=0,
+                    text=recent_signals.T.values,
+                    texttemplate='%{text:.1f}',
+                    textfont={"size": 8},
+                    colorbar=dict(
+                        title="信号",
+                        tickvals=[-1, 0, 0.5, 1],
+                        ticktext=['卖出', '空仓', '持仓', '买入']
+                    ),
+                    hoverongaps=False
+                ))
+                
+                fig_heatmap.update_layout(
+                    title='策略信号热力图',
+                    xaxis_title='日期',
+                    yaxis_title='策略',
+                    height=max(400, len(recent_signals.columns) * 50),
+                    xaxis=dict(tickangle=-45)
+                )
+                
+                st.plotly_chart(fig_heatmap, use_container_width=True)
+            
+            with chart_tab4:
+                st.markdown("**历史信号详细记录**")
+                # 倒序排列
+                history_df = all_actions.sort_index(ascending=False)
+                
+                # 显示最近 N 天
+                table_days = st.slider("表格显示天数", 10, 365, 30, key="table_days")
+                st.dataframe(history_df.head(table_days).style.applymap(color_action), height=600)
 
 
 elif app_mode == "策略回测":
@@ -367,8 +487,9 @@ elif app_mode == "策略回测":
                         met['Strategy'] = strategy_display_names[s_name]
                         
                         # 获取今日操作建议
-                        action, action_date = get_strategy_action(s_name, sig)
+                        action, reason, action_date = get_strategy_action(strategy, sig, df)
                         met['今日操作'] = action
+                        met['操作原因'] = reason
                         met['数据日期'] = action_date.strftime('%Y-%m-%d')
                         
                         comparison_results.append(met)
@@ -390,6 +511,7 @@ elif app_mode == "策略回测":
                         
                         bench_met['Strategy'] = f'📊 基准 ({ticker})'
                         bench_met['今日操作'] = '-'
+                        bench_met['操作原因'] = '-'
                         bench_met['数据日期'] = action_date.strftime('%Y-%m-%d') if action_date else "-"
                         # 基准的基准收益就是它自己，或者设为 0 表示无超额
                         bench_met['Benchmark Return'] = bench_met['Total Return'] 
@@ -408,7 +530,7 @@ elif app_mode == "策略回测":
                     })
                     
                     # 调整列顺序，把操作建议放在前面
-                    cols = ['今日操作', '数据日期', '总收益率', '基准收益', '夏普比率', '胜率', '最大回撤']
+                    cols = ['今日操作', '操作原因', '数据日期', '总收益率', '基准收益', '夏普比率', '胜率', '最大回撤']
                     # 确保列存在 (防止某些指标计算失败缺失)
                     cols = [c for c in cols if c in comp_df.columns]
                     comp_df = comp_df[cols]
@@ -465,13 +587,13 @@ elif app_mode == "策略回测":
                         # 重新生成信号
                         dca_strategy = strategies[strategy_name]
                         dca_signals = dca_strategy.generate_signals(df)
-                        current_action, action_date = get_strategy_action(strategy_name, dca_signals)
+                        current_action, current_reason, action_date = get_strategy_action(dca_strategy, dca_signals, df)
                         
                         results = backtester.run_dca_backtest(df)
                         metrics = backtester.calculate_metrics(results, is_dca=True)
                         
                         # 显示操作建议
-                        st.success(f"📅 **{action_date.strftime('%Y-%m-%d')} 操作建议:** {current_action}")
+                        st.success(f"📅 **{action_date.strftime('%Y-%m-%d')} 操作建议:** {current_action} ({current_reason})")
 
                         # 显示 DCA 结果
                         col1, col2, col3, col4, col5 = st.columns(5)
@@ -500,8 +622,8 @@ elif app_mode == "策略回测":
                         strategy = strategies[strategy_name]
                         signals = strategy.generate_signals(df)
                         
-                        current_action, action_date = get_strategy_action(strategy_name, signals)
-                        st.success(f"📅 **{action_date.strftime('%Y-%m-%d')} 操作建议:** {current_action}")
+                        current_action, current_reason, action_date = get_strategy_action(strategy, signals, df)
+                        st.success(f"📅 **{action_date.strftime('%Y-%m-%d')} 操作建议:** {current_action} \n\n **原因:** {current_reason}")
 
                         results = backtester.run_pyramid_backtest(df, signals)
                         metrics = backtester.calculate_metrics(results, is_pyramid=True)
@@ -548,8 +670,8 @@ elif app_mode == "策略回测":
                         strategy = strategies[strategy_name]
                         signals = strategy.generate_signals(df, vix_df=vix_df)
                         
-                        current_action, action_date = get_strategy_action(strategy_name, signals)
-                        st.success(f"📅 **{action_date.strftime('%Y-%m-%d')} 操作建议:** {current_action}")
+                        current_action, current_reason, action_date = get_strategy_action(strategy, signals, df)
+                        st.success(f"📅 **{action_date.strftime('%Y-%m-%d')} 操作建议:** {current_action} \n\n **原因:** {current_reason}")
                         
                         # 3. 运行回测
                         results = backtester.run_backtest(df, signals)

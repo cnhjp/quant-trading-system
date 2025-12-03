@@ -42,3 +42,22 @@ class LiquidityGrabStrategy(BaseStrategy):
         signals['Signal'] = signals['Signal'].ffill().fillna(0)
         
         return signals
+
+    def get_action_info(self, current_row, prev_row=None, market_row=None):
+        today_sig = current_row['Signal']
+        prev_sig = prev_row['Signal'] if prev_row is not None else 0
+        
+        if today_sig == 1:
+            action = "持仓" if prev_sig == 1 else "买入"
+            if prev_sig == 0 and market_row is not None:
+                reason = f"看涨SFP触发 (Low < PDL, Close > PDL), 价格 > MA200"
+            else:
+                reason = "持续持有看涨仓位"
+        else:
+            action = "空仓" if prev_sig == 0 else "卖出"
+            if prev_sig == 1:
+                reason = "看跌SFP或价格跌破MA200"
+            else:
+                reason = "无信号"
+            
+        return action, reason

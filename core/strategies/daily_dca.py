@@ -12,3 +12,6 @@ class DailyDCAStrategy(BaseStrategy):
         signals = pd.DataFrame(index=df.index)
         signals['Signal'] = 1 # 总是买入
         return signals
+
+    def get_action_info(self, current_row, prev_row=None, market_row=None):
+        return "买入 (定投)", "定投策略每日固定买入"
